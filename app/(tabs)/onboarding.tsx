@@ -6,22 +6,28 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 export default function OnboardingScreen() {
   const [perche, setPerche] = useState('');
   const [spesa, setSpesa] = useState('');
+  const [contattoNome, setContattoNome] = useState('');
+  const [contattoNumero, setContattoNumero] = useState('');
 
   const inizia = async () => {
     if (!perche || !spesa) return;
     await AsyncStorageLib.setItem('dataInizio', new Date().toISOString());
     await AsyncStorageLib.setItem('spesaGiornaliera', spesa);
     await AsyncStorageLib.setItem('perche', perche);
+    if (contattoNome) await AsyncStorageLib.setItem('contattoNome', contattoNome);
+    if (contattoNumero) await AsyncStorageLib.setItem('contattoNumero', contattoNumero);
     router.replace('/');
   };
 
   return (
     <ScrollView style={styles.container}>
+
       <View style={styles.hero}>
         <Text style={styles.heroEmoji}>🤲</Text>
         <Text style={styles.heroTitolo}>Ancora Qui.</Text>
         <Text style={styles.heroSub}>Non sei solo. Iniziamo insieme — un giorno alla volta.</Text>
       </View>
+
       <View style={styles.card}>
         <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
         <Text style={styles.cardDesc}>Cosa ti ha fatto scegliere di cambiare?</Text>
@@ -34,6 +40,7 @@ export default function OnboardingScreen() {
           multiline
         />
       </View>
+
       <View style={styles.card}>
         <Text style={styles.cardLbl}>QUANTO SPENDEVI AL GIORNO IN MEDIA</Text>
         <Text style={styles.cardDesc}>Serve per calcolare i soldi che stai risparmiando.</Text>
@@ -46,15 +53,38 @@ export default function OnboardingScreen() {
           keyboardType="numeric"
         />
       </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLbl}>PERSONA DI FIDUCIA — opzionale</Text>
+        <Text style={styles.cardDesc}>Chi vuoi chiamare nei momenti difficili?</Text>
+        <TextInput
+          style={[styles.input, { marginBottom: 10 }]}
+          placeholder="Nome (es. Marco, Mamma...)"
+          placeholderTextColor="#5a5f72"
+          value={contattoNome}
+          onChangeText={setContattoNome}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Numero di telefono"
+          placeholderTextColor="#5a5f72"
+          value={contattoNumero}
+          onChangeText={setContattoNumero}
+          keyboardType="phone-pad"
+        />
+      </View>
+
       <View style={styles.noteCard}>
         <Text style={styles.noteText}>🔒  I tuoi dati restano solo sul tuo telefono.</Text>
       </View>
+
       <TouchableOpacity
         style={[styles.btn, (!perche || !spesa) && styles.btnDisabled]}
         onPress={inizia}
       >
         <Text style={styles.btnText}>Inizia il percorso →</Text>
       </TouchableOpacity>
+
     </ScrollView>
   );
 }

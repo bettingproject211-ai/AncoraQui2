@@ -23,49 +23,15 @@ export default function TabLayout() {
         },
         tabBarActiveTintColor: '#c9965a',
         tabBarInactiveTintColor: '#5a5f72',
-        tabBarLabelStyle: { fontSize: 10 },
+        tabBarLabelStyle: { fontSize: 9 },
       }}>
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <TabBarIcon emoji="🏠" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="sos"
-        options={{
-          title: 'SOS',
-          tabBarIcon: ({ color }) => <TabBarIcon emoji="🚨" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="ricaduta"
-        options={{
-          title: 'Ricaduta',
-          tabBarIcon: ({ color }) => <TabBarIcon emoji="🤲" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="voci"
-        options={{
-          title: 'Voci',
-          tabBarIcon: ({ color }) => <TabBarIcon emoji="👥" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="soldi"
-        options={{
-          title: 'Soldi',
-          tabBarIcon: ({ color }) => <TabBarIcon emoji="💶" color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="onboarding"
-        options={{
-          href: null,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: 'Home', tabBarIcon: ({ color }) => <TabBarIcon emoji="🏠" color={color} /> }} />
+      <Tabs.Screen name="sos" options={{ title: 'SOS', tabBarIcon: ({ color }) => <TabBarIcon emoji="🚨" color={color} /> }} />
+      <Tabs.Screen name="diario" options={{ title: 'Diario', tabBarIcon: ({ color }) => <TabBarIcon emoji="📓" color={color} /> }} />
+      <Tabs.Screen name="voci" options={{ title: 'Voci', tabBarIcon: ({ color }) => <TabBarIcon emoji="👥" color={color} /> }} />
+      <Tabs.Screen name="soldi" options={{ title: 'Soldi', tabBarIcon: ({ color }) => <TabBarIcon emoji="💶" color={color} /> }} />
+      <Tabs.Screen name="ricaduta" options={{ title: 'Ricaduta', tabBarIcon: ({ color }) => <TabBarIcon emoji="🤲" color={color} /> }} />
+      <Tabs.Screen name="onboarding" options={{ href: null }} />
     </Tabs>
   );
 }
