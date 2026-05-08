@@ -13,6 +13,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
+        animation: 'fade',
         tabBarStyle: {
           backgroundColor: '#0c0f1a',
           borderTopColor: '#181c2a',
@@ -29,7 +30,7 @@ export default function TabLayout() {
       <Tabs.Screen name="sos" options={{ title: 'SOS', tabBarIcon: ({ color }) => <TabBarIcon emoji="🚨" color={color} /> }} />
       <Tabs.Screen name="diario" options={{ title: 'Diario', tabBarIcon: ({ color }) => <TabBarIcon emoji="📓" color={color} /> }} />
       <Tabs.Screen name="voci" options={{ title: 'Voci', tabBarIcon: ({ color }) => <TabBarIcon emoji="👥" color={color} /> }} />
-      <Tabs.Screen name="soldi" options={{ title: 'Soldi', tabBarIcon: ({ color }) => <TabBarIcon emoji="💶" color={color} /> }} />
+      <Tabs.Screen name="soldi" options={{ title: 'Soldi', tabBarIcon: ({ color }) => <TabBarIcon emoji="💶 " color={color} /> }} />
       <Tabs.Screen name="ricaduta" options={{ title: 'Ricaduta', tabBarIcon: ({ color }) => <TabBarIcon emoji="🤲" color={color} /> }} />
       <Tabs.Screen name="onboarding" options={{ href: null }} />
     </Tabs>
