@@ -2,7 +2,7 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
 
 Notifications.setNotificationHandler({
@@ -33,6 +33,16 @@ const NOTIFICHE: Record<string, string> = {
   'default': 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
 };
 
+const DOMANDE = [
+  'Come è andata oggi?',
+  'C\'è qualcosa che ti ha dato fastidio oggi?',
+  'Hai pensato al tuo perché oggi?',
+  'Qual è stato il momento migliore di oggi?',
+  'Come stai rispetto a ieri?',
+  'C\'è qualcosa di cui sei orgoglioso oggi?',
+  'Cosa ti ha aiutato a resistere oggi?',
+];
+
 export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
@@ -41,6 +51,9 @@ export default function HomeScreen() {
   const [onlineCount, setOnlineCount] = useState(0);
   const [moodSelezionato, setMoodSelezionato] = useState('');
   const [badgeModal, setBadgeModal] = useState<any>(null);
+  const [checkinModal, setCheckinModal] = useState(false);
+  const [checkinRisposta, setCheckinRisposta] = useState('');
+  const [domandaOggi, setDomandaOggi] = useState('');
   const animaFade = useRef(new Animated.Value(0)).current;
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
@@ -50,6 +63,7 @@ export default function HomeScreen() {
     richiediPermessi();
     caricaOnline();
     caricaMood();
+    controllaCheckin();
   }, []);
 
   useEffect(() => {
@@ -59,6 +73,41 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
   }, [giorni]);
+
+  const controllaCheckin = async () => {
+    try {
+      const oggi = new Date().toDateString();
+      const ultimoCheckin = await AsyncStorageLib.getItem('ultimoCheckin');
+      if (ultimoCheckin !== oggi) {
+        const indice = new Date().getDay() % DOMANDE.length;
+        setDomandaOggi(DOMANDE[indice]);
+        setTimeout(() => setCheckinModal(true), 2000);
+      }
+    } catch (e) {}
+  };
+
+  const salvaCheckin = async () => {
+    try {
+      const oggi = new Date().toDateString();
+      await AsyncStorageLib.setItem('ultimoCheckin', oggi);
+      if (checkinRisposta.trim()) {
+        const impulsiStr = await AsyncStorageLib.getItem('impulsi');
+        const impulsi = impulsiStr ? JSON.parse(impulsiStr) : [];
+        const nuovo = {
+          id: Date.now(),
+          trigger: 'Check-in',
+          nota: checkinRisposta.trim(),
+          resistito: true,
+          ora: new Date().getHours(),
+          oraLabel: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+          data: new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
+        };
+        await AsyncStorageLib.setItem('impulsi', JSON.stringify([nuovo, ...impulsi]));
+      }
+      setCheckinModal(false);
+      setCheckinRisposta('');
+    } catch (e) {}
+  };
 
   const caricaMood = async () => {
     try {
@@ -91,10 +140,7 @@ export default function HomeScreen() {
       const body = NOTIFICHE[moodSalvato] || NOTIFICHE['default'];
       await Notifications.cancelAllScheduledNotificationsAsync();
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Ancora Qui 🌙',
-          body,
-        },
+        content: { title: 'Ancora Qui 🌙', body },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour: 21,
@@ -153,7 +199,6 @@ export default function HomeScreen() {
   };
 
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
-
   const moods = [
     { emoji: '😴', label: 'Stanco' },
     { emoji: '😔', label: 'Solo' },
@@ -166,13 +211,8 @@ export default function HomeScreen() {
 
       <View style={styles.topbar}>
         <Text style={styles.logo}>Ancora Qui</Text>
-        <TouchableOpacity
-          style={styles.avatar}
-          onPress={() => router.push('/(tabs)/profilo' as any)}
-        >
-          <Text style={styles.avatarText}>
-            {nomeUtente ? nomeUtente[0].toUpperCase() : '?'}
-          </Text>
+        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profilo' as any)}>
+          <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '?'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -238,11 +278,7 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
-        {moodSelezionato ? (
-          <Text style={styles.moodConfirm}>
-            ✓ Notifica di stasera aggiornata
-          </Text>
-        ) : null}
+        {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Notifica di stasera aggiornata</Text> : null}
       </View>
 
       <View style={styles.linkGrid}>
@@ -266,6 +302,7 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </Animated.View>
 
+      {/* MODAL BADGE */}
       <Modal visible={!!badgeModal} transparent animationType="fade">
         <View style={styles.modalBg}>
           <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
@@ -276,6 +313,39 @@ export default function HomeScreen() {
               <Text style={styles.modalBtnText}>Grazie 🙏</Text>
             </TouchableOpacity>
           </Animated.View>
+        </View>
+      </Modal>
+
+      {/* MODAL CHECK-IN */}
+      <Modal visible={checkinModal} transparent animationType="slide">
+        <View style={styles.modalBg}>
+          <View style={styles.checkinCard}>
+            <Text style={styles.checkinEmoji}>💬</Text>
+            <Text style={styles.checkinDomanda}>{domandaOggi}</Text>
+            <TextInput
+              style={styles.checkinInput}
+              placeholder="Scrivi qualcosa... oppure chiudi"
+              placeholderTextColor="#5a5f72"
+              value={checkinRisposta}
+              onChangeText={setCheckinRisposta}
+              multiline
+              autoFocus
+            />
+            <View style={styles.checkinBtns}>
+              <TouchableOpacity
+                style={styles.checkinSkip}
+                onPress={async () => {
+                  await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString());
+                  setCheckinModal(false);
+                }}
+              >
+                <Text style={styles.checkinSkipText}>Non ora</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.checkinSave} onPress={salvaCheckin}>
+                <Text style={styles.checkinSaveText}>Salva →</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
       </Modal>
 
@@ -325,11 +395,20 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 11, color: '#5a5f72' },
   sos: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
   sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 280 },
   modalEmoji: { fontSize: 56, marginBottom: 16 },
   modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center' },
   modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
   modalBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
   modalBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
+  checkinCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 24, padding: 24, width: '100%' },
+  checkinEmoji: { fontSize: 36, textAlign: 'center', marginBottom: 12 },
+  checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 26, marginBottom: 16 },
+  checkinInput: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 14, color: '#ddd8cf', fontSize: 14, minHeight: 80, marginBottom: 16 },
+  checkinBtns: { flexDirection: 'row', gap: 10 },
+  checkinSkip: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#111525', alignItems: 'center' },
+  checkinSkipText: { fontSize: 14, color: '#5a5f72' },
+  checkinSave: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#c9965a', alignItems: 'center' },
+  checkinSaveText: { fontSize: 14, color: '#1a0f00', fontWeight: '700' },
 });
