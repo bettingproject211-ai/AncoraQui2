@@ -17,6 +17,7 @@ export default function DiarioScreen() {
   const [triggerSel, setTriggerSel] = useState('');
   const [nota, setNota] = useState('');
   const [resistito, setResistito] = useState(true);
+  const [vista, setVista] = useState<'diario' | 'statistiche'>('diario');
 
   useEffect(() => {
     caricaImpulsi();
@@ -36,7 +37,8 @@ export default function DiarioScreen() {
       trigger: triggerSel,
       nota,
       resistito,
-      ora: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+      ora: new Date().getHours(),
+      oraLabel: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
       data: new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
     };
     const nuovi = [nuovo, ...impulsi];
@@ -49,6 +51,21 @@ export default function DiarioScreen() {
   };
 
   const resistitiCount = impulsi.filter(i => i.resistito).length;
+  const cedutiCount = impulsi.filter(i => !i.resistito).length;
+
+  // Statistiche trigger
+  const triggerStats = TRIGGERS.map(t => ({
+    ...t,
+    count: impulsi.filter(i => i.trigger === t.label).length,
+  })).filter(t => t.count > 0).sort((a, b) => b.count - a.count);
+
+  // Ora più a rischio
+  const oreStats = impulsi.reduce((acc: any, i) => {
+    const fascia = i.ora < 6 ? 'Notte' : i.ora < 12 ? 'Mattina' : i.ora < 18 ? 'Pomeriggio' : 'Sera';
+    acc[fascia] = (acc[fascia] || 0) + 1;
+    return acc;
+  }, {});
+  const oraRischio = Object.entries(oreStats).sort((a: any, b: any) => b[1] - a[1])[0];
 
   return (
     <View style={styles.container}>
@@ -60,36 +77,117 @@ export default function DiarioScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
-          <Text style={styles.addBtnText}>+ Registra un impulso</Text>
-        </TouchableOpacity>
+        {/* TOGGLE VISTA */}
+        <View style={styles.toggle}>
+          <TouchableOpacity
+            style={[styles.toggleBtn, vista === 'diario' && styles.toggleBtnOn]}
+            onPress={() => setVista('diario')}
+          >
+            <Text style={[styles.toggleText, vista === 'diario' && styles.toggleTextOn]}>📓 Diario</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.toggleBtn, vista === 'statistiche' && styles.toggleBtnOn]}
+            onPress={() => setVista('statistiche')}
+          >
+            <Text style={[styles.toggleText, vista === 'statistiche' && styles.toggleTextOn]}>📊 Pattern</Text>
+          </TouchableOpacity>
+        </View>
 
-        {impulsi.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>📓</Text>
-            <Text style={styles.emptyTitle}>Nessun impulso registrato</Text>
-            <Text style={styles.emptySub}>Ogni volta che senti l'impulso — resistito o no — registralo. Nel tempo capirai i tuoi pattern.</Text>
-          </View>
-        ) : (
-          impulsi.map((impulso) => (
-            <View key={impulso.id} style={styles.impulso}>
-              <View style={styles.impulsoTop}>
-                <Text style={styles.impulsoEmoji}>
-                  {TRIGGERS.find(t => t.label === impulso.trigger)?.emoji || '💭'}
-                </Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.impulsoTrigger}>{impulso.trigger}</Text>
-                  <Text style={styles.impulsoData}>{impulso.data} · {impulso.ora}</Text>
-                </View>
-                <View style={[styles.badge, impulso.resistito ? styles.badgeOk : styles.badgeNo]}>
-                  <Text style={styles.badgeText}>{impulso.resistito ? '✓ Resistito' : '× Ceduto'}</Text>
-                </View>
+        {vista === 'diario' ? (
+          <>
+            <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)}>
+              <Text style={styles.addBtnText}>+ Registra un impulso</Text>
+            </TouchableOpacity>
+
+            {impulsi.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyEmoji}>📓</Text>
+                <Text style={styles.emptyTitle}>Nessun impulso registrato</Text>
+                <Text style={styles.emptySub}>Ogni volta che senti l'impulso — resistito o no — registralo. Nel tempo capirai i tuoi pattern.</Text>
               </View>
-              {impulso.nota ? (
-                <Text style={styles.impulsoNota}>{impulso.nota}</Text>
-              ) : null}
-            </View>
-          ))
+            ) : (
+              impulsi.map((impulso) => (
+                <View key={impulso.id} style={styles.impulso}>
+                  <View style={styles.impulsoTop}>
+                    <Text style={styles.impulsoEmoji}>
+                      {TRIGGERS.find(t => t.label === impulso.trigger)?.emoji || '💭'}
+                    </Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.impulsoTrigger}>{impulso.trigger}</Text>
+                      <Text style={styles.impulsoData}>{impulso.data} · {impulso.oraLabel}</Text>
+                    </View>
+                    <View style={[styles.badge, impulso.resistito ? styles.badgeOk : styles.badgeNo]}>
+                      <Text style={styles.badgeText}>{impulso.resistito ? '✓ Resistito' : '× Ceduto'}</Text>
+                    </View>
+                  </View>
+                  {impulso.nota ? <Text style={styles.impulsoNota}>{impulso.nota}</Text> : null}
+                </View>
+              ))
+            )}
+          </>
+        ) : (
+          <>
+            {impulsi.length === 0 ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyEmoji}>📊</Text>
+                <Text style={styles.emptyTitle}>Nessun dato ancora</Text>
+                <Text style={styles.emptySub}>Registra almeno un impulso per vedere i tuoi pattern.</Text>
+              </View>
+            ) : (
+              <>
+                {/* RIEPILOGO */}
+                <View style={styles.riepilogo}>
+                  <View style={styles.riepilogoItem}>
+                    <Text style={styles.riepilogoNum}>{impulsi.length}</Text>
+                    <Text style={styles.riepilogoLbl}>Totale</Text>
+                  </View>
+                  <View style={styles.riepilogoDivider} />
+                  <View style={styles.riepilogoItem}>
+                    <Text style={[styles.riepilogoNum, { color: '#6aaa82' }]}>{resistitiCount}</Text>
+                    <Text style={styles.riepilogoLbl}>Resistiti</Text>
+                  </View>
+                  <View style={styles.riepilogoDivider} />
+                  <View style={styles.riepilogoItem}>
+                    <Text style={[styles.riepilogoNum, { color: '#b85c5c' }]}>{cedutiCount}</Text>
+                    <Text style={styles.riepilogoLbl}>Ceduti</Text>
+                  </View>
+                  <View style={styles.riepilogoDivider} />
+                  <View style={styles.riepilogoItem}>
+                    <Text style={[styles.riepilogoNum, { color: '#c9965a' }]}>
+                      {impulsi.length > 0 ? Math.round((resistitiCount / impulsi.length) * 100) : 0}%
+                    </Text>
+                    <Text style={styles.riepilogoLbl}>Resistenza</Text>
+                  </View>
+                </View>
+
+                {/* ORA A RISCHIO */}
+                {oraRischio && (
+                  <View style={styles.statCard}>
+                    <Text style={styles.statCardLbl}>ORA PIÙ A RISCHIO</Text>
+                    <Text style={styles.statCardVal}>🕐 {oraRischio[0]}</Text>
+                    <Text style={styles.statCardDesc}>La maggior parte dei tuoi impulsi arriva di {oraRischio[0].toLowerCase()}. Stai più attento in quel momento.</Text>
+                  </View>
+                )}
+
+                {/* TRIGGER PIÙ FREQUENTI */}
+                {triggerStats.length > 0 && (
+                  <View style={styles.statCard}>
+                    <Text style={styles.statCardLbl}>I TUOI TRIGGER</Text>
+                    {triggerStats.map(t => (
+                      <View key={t.label} style={styles.triggerStatRow}>
+                        <Text style={styles.triggerStatEmoji}>{t.emoji}</Text>
+                        <Text style={styles.triggerStatLabel}>{t.label}</Text>
+                        <View style={styles.triggerStatBarWrap}>
+                          <View style={[styles.triggerStatBar, { width: `${(t.count / impulsi.length) * 100}%` }]} />
+                        </View>
+                        <Text style={styles.triggerStatCount}>{t.count}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+          </>
         )}
       </ScrollView>
 
@@ -97,7 +195,6 @@ export default function DiarioScreen() {
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitolo}>Registra impulso</Text>
-
             <Text style={styles.modalLbl}>COSA L'HA SCATENATO?</Text>
             <View style={styles.triggers}>
               {TRIGGERS.map(t => (
@@ -111,7 +208,6 @@ export default function DiarioScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-
             <Text style={styles.modalLbl}>HAI RESISTITO?</Text>
             <View style={styles.resistitoRow}>
               <TouchableOpacity
@@ -127,7 +223,6 @@ export default function DiarioScreen() {
                 <Text style={styles.resistitoBtnText}>× No</Text>
               </TouchableOpacity>
             </View>
-
             <Text style={styles.modalLbl}>NOTA (opzionale)</Text>
             <TextInput
               style={styles.notaInput}
@@ -137,7 +232,6 @@ export default function DiarioScreen() {
               onChangeText={setNota}
               multiline
             />
-
             <View style={styles.modalBtns}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
                 <Text style={styles.modalCancelText}>Annulla</Text>
@@ -162,6 +256,11 @@ const styles = StyleSheet.create({
   titolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf' },
   statPill: { backgroundColor: 'rgba(106,170,130,0.08)', borderWidth: 1, borderColor: 'rgba(106,170,130,0.18)', paddingHorizontal: 12, paddingVertical: 5, borderRadius: 100 },
   statText: { fontSize: 12, color: '#6aaa82' },
+  toggle: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 14, padding: 4 },
+  toggleBtn: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 10 },
+  toggleBtnOn: { backgroundColor: '#c9965a' },
+  toggleText: { fontSize: 13, color: '#5a5f72', fontWeight: '500' },
+  toggleTextOn: { color: '#1a0f00', fontWeight: '700' },
   addBtn: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#c9965a', borderRadius: 16, padding: 16, alignItems: 'center' },
   addBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
   empty: { padding: 40, alignItems: 'center' },
@@ -178,6 +277,21 @@ const styles = StyleSheet.create({
   badgeNo: { backgroundColor: 'rgba(184,92,92,0.1)' },
   badgeText: { fontSize: 10, color: '#ddd8cf' },
   impulsoNota: { fontSize: 12, color: '#5a5f72', marginTop: 8, fontStyle: 'italic', lineHeight: 18 },
+  riepilogo: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  riepilogoItem: { flex: 1, alignItems: 'center' },
+  riepilogoNum: { fontSize: 24, fontWeight: '700', color: '#ddd8cf', marginBottom: 4 },
+  riepilogoLbl: { fontSize: 10, color: '#5a5f72' },
+  riepilogoDivider: { width: 1, backgroundColor: '#181c2a', marginVertical: 4 },
+  statCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  statCardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginBottom: 10 },
+  statCardVal: { fontSize: 20, fontWeight: '700', color: '#ddd8cf', marginBottom: 6 },
+  statCardDesc: { fontSize: 12, color: '#5a5f72', lineHeight: 18 },
+  triggerStatRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
+  triggerStatEmoji: { fontSize: 18, width: 24 },
+  triggerStatLabel: { fontSize: 12, color: '#ddd8cf', width: 90 },
+  triggerStatBarWrap: { flex: 1, height: 6, backgroundColor: '#181c2a', borderRadius: 3, overflow: 'hidden' },
+  triggerStatBar: { height: '100%', backgroundColor: '#c9965a', borderRadius: 3 },
+  triggerStatCount: { fontSize: 12, color: '#5a5f72', width: 20, textAlign: 'right' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 20, textAlign: 'center' },

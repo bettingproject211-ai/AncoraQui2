@@ -32,6 +32,7 @@ export default function HomeScreen() {
   const [badgeModal, setBadgeModal] = useState<any>(null);
   const animaFade = useRef(new Animated.Value(0)).current;
   const animaBadge = useRef(new Animated.Value(0)).current;
+  const animaSos = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     controllaOnboarding();
@@ -78,10 +79,7 @@ export default function HomeScreen() {
       if (!già) {
         await AsyncStorageLib.setItem(key, 'true');
         setBadgeModal(badge);
-        Animated.spring(animaBadge, {
-          toValue: 1,
-          useNativeDriver: true,
-        }).start();
+        Animated.spring(animaBadge, { toValue: 1, useNativeDriver: true }).start();
       }
     }
   };
@@ -104,6 +102,13 @@ export default function HomeScreen() {
       setRisparmi(diff * spesaNum);
       controllaBadge(diff);
     } catch (e) {}
+  };
+
+  const premiSos = () => {
+    Animated.sequence([
+      Animated.timing(animaSos, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+      Animated.timing(animaSos, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start(() => router.push('/(tabs)/sos' as any));
   };
 
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
@@ -189,11 +194,12 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <TouchableOpacity style={styles.sos} onPress={() => router.push('/(tabs)/sos' as any)}>
-        <Text style={styles.sosText}>🚨  Ho bisogno di aiuto ora</Text>
-      </TouchableOpacity>
+      <Animated.View style={{ transform: [{ scale: animaSos }] }}>
+        <TouchableOpacity style={styles.sos} onPress={premiSos}>
+          <Text style={styles.sosText}>🚨  Ho bisogno di aiuto ora</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
-      {/* MODAL BADGE */}
       <Modal visible={!!badgeModal} transparent animationType="fade">
         <View style={styles.modalBg}>
           <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
@@ -246,7 +252,7 @@ const styles = StyleSheet.create({
   pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
   pillText: { fontSize: 11, color: '#5a5f72' },
   pillOnText: { fontSize: 11, color: '#c9965a' },
-  sos: { margin: 20, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
+  sos: { marginHorizontal: 20, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
   sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 280 },

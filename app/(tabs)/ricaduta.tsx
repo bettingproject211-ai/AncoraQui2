@@ -1,11 +1,12 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function RicadutaScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
   const [triggerSelezionato, setTriggerSelezionato] = useState('');
+  const [modalReset, setModalReset] = useState(false);
 
   useEffect(() => {
     caricaDati();
@@ -23,9 +24,17 @@ export default function RicadutaScreen() {
         const spesaNum = spesa ? parseFloat(spesa) : 30;
         setRisparmi(diff * spesaNum);
       }
-    } catch (e) {
-      console.log(e);
-    }
+    } catch (e) {}
+  };
+
+  const riprendiPercorso = async () => {
+    try {
+      await AsyncStorageLib.setItem('dataInizio', new Date().toISOString());
+      setGiorni(0);
+      setRisparmi(0);
+      setModalReset(false);
+      setTriggerSelezionato('');
+    } catch (e) {}
   };
 
   const triggers = [
@@ -80,10 +89,31 @@ export default function RicadutaScreen() {
 
       <View style={styles.cta}>
         <Text style={styles.ctaMsg}>Quando sei pronto, ricominciamo. Nessuna fretta.</Text>
-        <TouchableOpacity style={styles.ctaBtn}>
+        <TouchableOpacity style={styles.ctaBtn} onPress={() => setModalReset(true)}>
           <Text style={styles.ctaBtnText}>▶  Riprendi il percorso</Text>
         </TouchableOpacity>
       </View>
+
+      {/* MODAL CONFERMA */}
+      <Modal visible={modalReset} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalEmoji}>🌱</Text>
+            <Text style={styles.modalTitolo}>Ricominciamo insieme.</Text>
+            <Text style={styles.modalDesc}>
+              Il contatore ripartirà da oggi.{'\n'}
+              I tuoi giorni precedenti non spariscono — sono parte di te.{'\n\n'}
+              Sei pronto?
+            </Text>
+            <TouchableOpacity style={styles.modalBtnOk} onPress={riprendiPercorso}>
+              <Text style={styles.modalBtnOkText}>Sì, ricominciamo 🌱</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.modalBtnCancel} onPress={() => setModalReset(false)}>
+              <Text style={styles.modalBtnCancelText}>Non ancora</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
     </ScrollView>
   );
@@ -118,4 +148,13 @@ const styles = StyleSheet.create({
   ctaMsg: { fontSize: 13, color: '#a8a29a', lineHeight: 20, marginBottom: 12, textAlign: 'center' },
   ctaBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, width: '100%', alignItems: 'center' },
   ctaBtnText: { color: '#1a0f00', fontSize: 13, fontWeight: '700' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
+  modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 24, padding: 28, alignItems: 'center', width: 300 },
+  modalEmoji: { fontSize: 48, marginBottom: 14 },
+  modalTitolo: { fontSize: 20, fontWeight: '700', color: '#ddd8cf', marginBottom: 10, textAlign: 'center' },
+  modalDesc: { fontSize: 13, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalBtnOk: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 14, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
+  modalBtnOkText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
+  modalBtnCancel: { padding: 10 },
+  modalBtnCancelText: { fontSize: 13, color: '#5a5f72' },
 });
