@@ -25,6 +25,14 @@ const BADGES = [
   { giorni: 100, emoji: '🚀', titolo: '100 giorni', desc: 'Cento giorni. Nessuno te li toglie.' },
 ];
 
+const NOTIFICHE: Record<string, string> = {
+  'Stanco': 'Sei stanco — lo sappiamo. Non aprire quell\'altra app. Sei ancora qui.',
+  'Solo': 'Stasera ti senti solo. Entra nelle Voci — ci sono persone che capiscono.',
+  'Nervoso': 'Giornata pesante? Respira. Apri l\'app prima di fare altro.',
+  'Ok': 'Stai bene stasera. Registra questo momento nel diario. 💪',
+  'default': 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
+};
+
 export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
@@ -41,6 +49,7 @@ export default function HomeScreen() {
     controllaOnboarding();
     richiediPermessi();
     caricaOnline();
+    caricaMood();
   }, []);
 
   useEffect(() => {
@@ -50,6 +59,13 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
   }, [giorni]);
+
+  const caricaMood = async () => {
+    try {
+      const mood = await AsyncStorageLib.getItem('moodOggi');
+      if (mood) setMoodSelezionato(mood);
+    } catch (e) {}
+  };
 
   const caricaOnline = async () => {
     try {
@@ -69,13 +85,15 @@ export default function HomeScreen() {
     } catch (e) {}
   };
 
-  const programmaNotificaSera = async () => {
+  const programmaNotificaSera = async (mood?: string) => {
     try {
+      const moodSalvato = mood || await AsyncStorageLib.getItem('moodOggi') || 'default';
+      const body = NOTIFICHE[moodSalvato] || NOTIFICHE['default'];
       await Notifications.cancelAllScheduledNotificationsAsync();
       await Notifications.scheduleNotificationAsync({
         content: {
           title: 'Ancora Qui 🌙',
-          body: 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
+          body,
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DAILY,
@@ -84,6 +102,12 @@ export default function HomeScreen() {
         },
       });
     } catch (e) {}
+  };
+
+  const selezionaMood = async (mood: string) => {
+    setMoodSelezionato(mood);
+    await AsyncStorageLib.setItem('moodOggi', mood);
+    programmaNotificaSera(mood);
   };
 
   const controllaBadge = async (diff: number) => {
@@ -206,7 +230,7 @@ export default function HomeScreen() {
             <TouchableOpacity
               key={mood.label}
               style={[styles.pill, moodSelezionato === mood.label && styles.pillOn]}
-              onPress={() => setMoodSelezionato(mood.label)}
+              onPress={() => selezionaMood(mood.label)}
             >
               <Text style={moodSelezionato === mood.label ? styles.pillOnText : styles.pillText}>
                 {mood.emoji} {mood.label}
@@ -214,6 +238,11 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        {moodSelezionato ? (
+          <Text style={styles.moodConfirm}>
+            ✓ Notifica di stasera aggiornata
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.linkGrid}>
@@ -289,6 +318,7 @@ const styles = StyleSheet.create({
   pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
   pillText: { fontSize: 11, color: '#5a5f72' },
   pillOnText: { fontSize: 11, color: '#c9965a' },
+  moodConfirm: { fontSize: 10, color: '#6aaa82', marginTop: 8 },
   linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginTop: 14, gap: 10 },
   linkCard: { flex: 1, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 14, alignItems: 'center', gap: 6 },
   linkEmoji: { fontSize: 22 },
