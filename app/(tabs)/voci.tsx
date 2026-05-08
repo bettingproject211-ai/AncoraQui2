@@ -7,24 +7,34 @@ export default function VociScreen() {
   const [testo, setTesto] = useState('');
   const [loading, setLoading] = useState(true);
   const [invio, setInvio] = useState(false);
+  const [online, setOnline] = useState(0);
 
   useEffect(() => {
     caricaPosts();
+    caricaOnline();
   }, []);
+
+  const caricaOnline = async () => {
+    try {
+      const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from('voci')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', ieri);
+      setOnline(count || 0);
+    } catch (e) {}
+  };
 
   const caricaPosts = async () => {
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('voci')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
       if (data) setPosts(data);
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) {}
+    finally { setLoading(false); }
   };
 
   const inviaPost = async () => {
@@ -45,12 +55,10 @@ export default function VociScreen() {
       if (!error) {
         setTesto('');
         caricaPosts();
+        caricaOnline();
       }
-    } catch (e) {
-      console.log(e);
-    } finally {
-      setInvio(false);
-    }
+    } catch (e) {}
+    finally { setInvio(false); }
   };
 
   const formatTempo = (created_at: string) => {
@@ -67,7 +75,7 @@ export default function VociScreen() {
         <Text style={styles.titolo}>Voci</Text>
         <View style={styles.online}>
           <View style={styles.onlineDot} />
-          <Text style={styles.onlineText}>{posts.length} voci</Text>
+          <Text style={styles.onlineText}>{online} voci oggi</Text>
         </View>
       </View>
 
@@ -116,7 +124,6 @@ export default function VociScreen() {
           </View>
         ))
       )}
-
     </ScrollView>
   );
 }

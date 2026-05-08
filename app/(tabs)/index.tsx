@@ -3,6 +3,7 @@ import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { supabase } from '../../supabase';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -28,6 +29,8 @@ export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
   const [perche, setPerche] = useState('');
+  const [nomeUtente, setNomeUtente] = useState('');
+  const [onlineCount, setOnlineCount] = useState(0);
   const [moodSelezionato, setMoodSelezionato] = useState('');
   const [badgeModal, setBadgeModal] = useState<any>(null);
   const animaFade = useRef(new Animated.Value(0)).current;
@@ -37,6 +40,7 @@ export default function HomeScreen() {
   useEffect(() => {
     controllaOnboarding();
     richiediPermessi();
+    caricaOnline();
   }, []);
 
   useEffect(() => {
@@ -46,6 +50,17 @@ export default function HomeScreen() {
       useNativeDriver: true,
     }).start();
   }, [giorni]);
+
+  const caricaOnline = async () => {
+    try {
+      const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from('voci')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', ieri);
+      setOnlineCount(count || 0);
+    } catch (e) {}
+  };
 
   const richiediPermessi = async () => {
     try {
@@ -93,11 +108,13 @@ export default function HomeScreen() {
       }
       const percheStr = await AsyncStorageLib.getItem('perche');
       const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
+      const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
       const inizio = new Date(dataInizio);
       const oggi = new Date();
       const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
       setGiorni(diff);
       setPerche(percheStr || '');
+      setNomeUtente(nomeStr || '');
       const spesaNum = spesa ? parseFloat(spesa) : 30;
       setRisparmi(diff * spesaNum);
       controllaBadge(diff);
@@ -125,14 +142,19 @@ export default function HomeScreen() {
 
       <View style={styles.topbar}>
         <Text style={styles.logo}>Ancora Qui</Text>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>S</Text>
-        </View>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={() => router.push('/(tabs)/profilo' as any)}
+        >
+          <Text style={styles.avatarText}>
+            {nomeUtente ? nomeUtente[0].toUpperCase() : '?'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.onlinePill}>
         <View style={styles.onlineDot} />
-        <Text style={styles.onlineText}>23 persone qui stanotte</Text>
+        <Text style={styles.onlineText}>{onlineCount} voci oggi</Text>
       </View>
 
       <View style={styles.perche}>
@@ -194,6 +216,21 @@ export default function HomeScreen() {
         </View>
       </View>
 
+      <View style={styles.linkGrid}>
+        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/diario' as any)}>
+          <Text style={styles.linkEmoji}>📓</Text>
+          <Text style={styles.linkText}>Diario</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/soldi' as any)}>
+          <Text style={styles.linkEmoji}>💶</Text>
+          <Text style={styles.linkText}>Soldi</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/ricaduta' as any)}>
+          <Text style={styles.linkEmoji}>🤲</Text>
+          <Text style={styles.linkText}>Ricaduta</Text>
+        </TouchableOpacity>
+      </View>
+
       <Animated.View style={{ transform: [{ scale: animaSos }] }}>
         <TouchableOpacity style={styles.sos} onPress={premiSos}>
           <Text style={styles.sosText}>🚨  Ho bisogno di aiuto ora</Text>
@@ -252,7 +289,11 @@ const styles = StyleSheet.create({
   pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
   pillText: { fontSize: 11, color: '#5a5f72' },
   pillOnText: { fontSize: 11, color: '#c9965a' },
-  sos: { marginHorizontal: 20, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
+  linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginTop: 14, gap: 10 },
+  linkCard: { flex: 1, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 14, alignItems: 'center', gap: 6 },
+  linkEmoji: { fontSize: 22 },
+  linkText: { fontSize: 11, color: '#5a5f72' },
+  sos: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
   sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
   modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 280 },

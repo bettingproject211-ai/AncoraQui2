@@ -1,6 +1,7 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno' },
@@ -33,7 +34,6 @@ export default function ProfiloScreen() {
       const percheStr = await AsyncStorageLib.getItem('perche');
       const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
       const impulsiStr = await AsyncStorageLib.getItem('impulsi');
-
       if (dataInizio) {
         const inizio = new Date(dataInizio);
         const oggi = new Date();
@@ -58,13 +58,30 @@ export default function ProfiloScreen() {
     setEditNome(false);
   };
 
+  const resetApp = () => {
+    Alert.alert(
+      'Reset app',
+      'Vuoi resettare tutti i dati? Utile per testare.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorageLib.clear();
+            router.replace('/(tabs)/onboarding' as any);
+          }
+        }
+      ]
+    );
+  };
+
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
   const badgeMancanti = BADGES.filter(b => b.giorni > giorni);
 
   return (
     <ScrollView style={styles.container}>
 
-      {/* HEADER PROFILO */}
       <View style={styles.header}>
         <View style={styles.avatarGrande}>
           <Text style={styles.avatarEmoji}>
@@ -77,7 +94,6 @@ export default function ProfiloScreen() {
         <Text style={styles.giorni}>{giorni} giorni libero</Text>
       </View>
 
-      {/* STATS */}
       <View style={styles.statsRow}>
         <View style={styles.statItem}>
           <Text style={styles.statNum}>{giorni}</Text>
@@ -97,13 +113,11 @@ export default function ProfiloScreen() {
         </View>
       </View>
 
-      {/* PERCHÉ */}
       <View style={styles.percheCard}>
         <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
         <Text style={styles.percheText}>"{perche}"</Text>
       </View>
 
-      {/* BADGE RAGGIUNTI */}
       <View style={styles.card}>
         <Text style={styles.cardLbl}>BADGE RAGGIUNTI — {badgeRaggunti.length}/{BADGES.length}</Text>
         {badgeRaggunti.length === 0 ? (
@@ -120,7 +134,6 @@ export default function ProfiloScreen() {
         )}
       </View>
 
-      {/* BADGE MANCANTI */}
       {badgeMancanti.length > 0 && (
         <View style={styles.card}>
           <Text style={styles.cardLbl}>PROSSIMI BADGE</Text>
@@ -135,7 +148,10 @@ export default function ProfiloScreen() {
         </View>
       )}
 
-      {/* MODAL NOME */}
+      <TouchableOpacity style={styles.resetBtn} onPress={resetApp}>
+        <Text style={styles.resetText}>🔄 Reset per test</Text>
+      </TouchableOpacity>
+
       <Modal visible={editNome} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.modalCard}>
@@ -180,13 +196,15 @@ const styles = StyleSheet.create({
   percheCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: 'rgba(201,150,90,0.05)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 16 },
   cardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginBottom: 8 },
   percheText: { fontSize: 14, fontStyle: 'italic', color: '#ddd8cf', lineHeight: 22 },
-  card: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16, marginBottom: 0 },
+  card: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
   badgeEmpty: { fontSize: 13, color: '#5a5f72', textAlign: 'center', paddingVertical: 8 },
   badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   badgeItem: { alignItems: 'center', backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 12, padding: 10, minWidth: 70 },
   badgeItemLocked: { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: '#181c2a' },
   badgeEmoji: { fontSize: 24, marginBottom: 4 },
   badgeTitolo: { fontSize: 9, color: '#c9965a', textAlign: 'center' },
+  resetBtn: { marginHorizontal: 20, marginTop: 20, marginBottom: 40, padding: 14, alignItems: 'center' },
+  resetText: { fontSize: 12, color: '#5a5f72' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 6, textAlign: 'center' },

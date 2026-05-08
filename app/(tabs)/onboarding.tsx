@@ -1,9 +1,12 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Dimensions, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 export default function OnboardingScreen() {
+  const [step, setStep] = useState(0);
   const [perche, setPerche] = useState('');
   const [spesa, setSpesa] = useState('');
   const [contattoNome, setContattoNome] = useState('');
@@ -20,21 +23,82 @@ export default function OnboardingScreen() {
     router.replace('/');
   };
 
+  const schermate = [
+    {
+      emoji: '🤲',
+      titolo: 'Questa app non ti giudica.',
+      testo: 'Non ti dice cosa fare.\nÈ semplicemente qui.',
+    },
+    {
+      emoji: '👁️',
+      titolo: 'Sappiamo che smettere non è semplice come sembra.',
+      testo: 'Nessuno lo sa meglio di chi ci è passato.',
+    },
+    {
+      emoji: '📱',
+      titolo: 'Una cosa sola.',
+      testo: 'Mettici in homepage.\nNei momenti difficili devi trovarci subito.',
+      istruzioni: true,
+    },
+  ];
+
+  if (step < 3) {
+    const schermata = schermate[step];
+    return (
+      <View style={styles.container}>
+        <View style={styles.intro}>
+
+          <Text style={styles.introEmoji}>{schermata.emoji}</Text>
+          <Text style={styles.introTitolo}>{schermata.titolo}</Text>
+          <Text style={styles.introTesto}>{schermata.testo}</Text>
+
+          {schermata.istruzioni && (
+            <View style={styles.istruzioniCard}>
+              <Text style={styles.istruzioniLbl}>COME FARLO</Text>
+              <Text style={styles.istruzioniTesto}>
+                Android: tieni premuta l'app → "Aggiungi alla schermata Home"{'\n\n'}
+                iPhone: tocca Condividi → "Aggiungi a Home"
+              </Text>
+            </View>
+          )}
+
+        </View>
+
+        <View style={styles.introBottom}>
+          <View style={styles.dots}>
+            {[0, 1, 2].map(i => (
+              <View key={i} style={[styles.dot, step === i && styles.dotOn]} />
+            ))}
+          </View>
+          <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(step + 1)}>
+            <Text style={styles.nextBtnText}>
+              {step === 2 ? 'Iniziamo →' : 'Continua →'}
+            </Text>
+          </TouchableOpacity>
+          {step > 0 && (
+            <TouchableOpacity onPress={() => setStep(step - 1)}>
+              <Text style={styles.backText}>← Indietro</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
 
-      <View style={styles.hero}>
-        <Text style={styles.heroEmoji}>🤲</Text>
-        <Text style={styles.heroTitolo}>Ancora Qui.</Text>
-        <Text style={styles.heroSub}>Non sei solo. Iniziamo insieme — un giorno alla volta.</Text>
+      <View style={styles.formHeader}>
+        <Text style={styles.formTitolo}>Configuriamo insieme.</Text>
+        <Text style={styles.formSub}>Tutto rimane solo sul tuo telefono.</Text>
       </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
-        <Text style={styles.cardDesc}>Cosa ti ha fatto scegliere di cambiare?</Text>
+        <Text style={styles.cardDesc}>Cosa ti ha fatto aprire questa app oggi?</Text>
         <TextInput
           style={styles.input}
-          placeholder="Es. per mio figlio, per la mia famiglia..."
+          placeholder="Es. per mia figlia, per me stesso..."
           placeholderTextColor="#5a5f72"
           value={perche}
           onChangeText={setPerche}
@@ -44,7 +108,7 @@ export default function OnboardingScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardLbl}>QUANTO SPENDEVI AL GIORNO IN MEDIA</Text>
-        <Text style={styles.cardDesc}>Serve per calcolare i soldi che stai risparmiando.</Text>
+        <Text style={styles.cardDesc}>Serve per mostrarti i soldi che stai risparmiando.</Text>
         <TextInput
           style={styles.input}
           placeholder="Es. 30"
@@ -57,7 +121,7 @@ export default function OnboardingScreen() {
 
       <View style={styles.card}>
         <Text style={styles.cardLbl}>PERSONA DI FIDUCIA — opzionale</Text>
-        <Text style={styles.cardDesc}>Chi vuoi chiamare nei momenti difficili?</Text>
+        <Text style={styles.cardDesc}>Chi vuoi poter chiamare nei momenti difficili?</Text>
         <TextInput
           style={[styles.input, { marginBottom: 10 }]}
           placeholder="Nome (es. Marco, Mamma...)"
@@ -78,14 +142,10 @@ export default function OnboardingScreen() {
       <View style={styles.disclaimerCard}>
         <Text style={styles.disclaimerTitolo}>⚠️ Informazione importante</Text>
         <Text style={styles.disclaimerTesto}>
-          Ancora Qui è uno strumento di supporto emotivo e non sostituisce in alcun modo il parere o il trattamento di un professionista della salute mentale.{'\n\n'}
-          Se sei in crisi, contatta il SerD al numero gratuito 800 274 274 o il tuo medico di fiducia.{'\n\n'}
-          Continuando, dichiari di aver letto e compreso questa informazione.
+          Ancora Qui è uno strumento di supporto e non sostituisce il parere di un professionista della salute mentale.{'\n\n'}
+          Se sei in crisi chiama il SerD al numero gratuito 800 274 274.
         </Text>
-        <TouchableOpacity
-          style={styles.checkRow}
-          onPress={() => setAccettato(!accettato)}
-        >
+        <TouchableOpacity style={styles.checkRow} onPress={() => setAccettato(!accettato)}>
           <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
             {accettato && <Text style={styles.checkmark}>✓</Text>}
           </View>
@@ -93,15 +153,11 @@ export default function OnboardingScreen() {
         </TouchableOpacity>
       </View>
 
-      <View style={styles.noteCard}>
-        <Text style={styles.noteText}>🔒  I tuoi dati restano solo sul tuo telefono.</Text>
-      </View>
-
       <TouchableOpacity
         style={[styles.btn, (!perche || !spesa || !accettato) && styles.btnDisabled]}
         onPress={inizia}
       >
-        <Text style={styles.btnText}>Inizia il percorso →</Text>
+        <Text style={styles.btnText}>Inizia →</Text>
       </TouchableOpacity>
 
     </ScrollView>
@@ -110,10 +166,23 @@ export default function OnboardingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
-  hero: { padding: 40, paddingTop: 80, alignItems: 'center' },
-  heroEmoji: { fontSize: 48, marginBottom: 16 },
-  heroTitolo: { fontSize: 36, fontWeight: '700', color: '#ddd8cf', fontStyle: 'italic', marginBottom: 12 },
-  heroSub: { fontSize: 15, color: '#5a5f72', textAlign: 'center', lineHeight: 22 },
+  intro: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, paddingTop: 100 },
+  introEmoji: { fontSize: 56, marginBottom: 28 },
+  introTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 30, marginBottom: 16 },
+  introTesto: { fontSize: 16, color: '#5a5f72', textAlign: 'center', lineHeight: 26 },
+  istruzioniCard: { marginTop: 28, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 18, width: '100%' },
+  istruzioniLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 8 },
+  istruzioniTesto: { fontSize: 13, color: '#5a5f72', lineHeight: 22 },
+  introBottom: { padding: 32, alignItems: 'center', gap: 16 },
+  dots: { flexDirection: 'row', gap: 8 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1e2336' },
+  dotOn: { backgroundColor: '#c9965a', width: 20 },
+  nextBtn: { backgroundColor: '#c9965a', borderRadius: 16, paddingVertical: 16, paddingHorizontal: 40, width: '100%', alignItems: 'center' },
+  nextBtnText: { color: '#1a0f00', fontSize: 16, fontWeight: '700' },
+  backText: { fontSize: 13, color: '#5a5f72' },
+  formHeader: { padding: 28, paddingTop: 60, alignItems: 'center' },
+  formTitolo: { fontSize: 24, fontWeight: '700', color: '#ddd8cf', marginBottom: 6 },
+  formSub: { fontSize: 13, color: '#5a5f72' },
   card: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 18 },
   cardLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 6 },
   cardDesc: { fontSize: 12, color: '#5a5f72', lineHeight: 18, marginBottom: 12 },
@@ -126,8 +195,6 @@ const styles = StyleSheet.create({
   checkboxOn: { backgroundColor: '#c9965a', borderColor: '#c9965a' },
   checkmark: { fontSize: 14, color: '#1a0f00', fontWeight: '700' },
   checkLabel: { fontSize: 13, color: '#ddd8cf', flex: 1 },
-  noteCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: 'rgba(201,150,90,0.05)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.12)', borderRadius: 16, padding: 14 },
-  noteText: { fontSize: 12, color: '#5a5f72', textAlign: 'center' },
   btn: { marginHorizontal: 20, marginBottom: 60, backgroundColor: '#c9965a', borderRadius: 16, padding: 18, alignItems: 'center' },
   btnDisabled: { opacity: 0.4 },
   btnText: { color: '#1a0f00', fontSize: 16, fontWeight: '700' },
