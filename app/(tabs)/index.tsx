@@ -2,7 +2,7 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -14,13 +14,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
+const BADGES = [
+  { giorni: 1, emoji: '🌱', titolo: 'Primo giorno', desc: 'Hai iniziato. È tutto.' },
+  { giorni: 3, emoji: '🔥', titolo: 'Tre giorni', desc: 'Il più difficile è passato.' },
+  { giorni: 7, emoji: '⭐', titolo: 'Una settimana', desc: 'Sette giorni di forza vera.' },
+  { giorni: 14, emoji: '🌙', titolo: 'Due settimane', desc: 'Stai costruendo qualcosa di reale.' },
+  { giorni: 30, emoji: '🏆', titolo: 'Un mese', desc: 'Un mese intero. Sei incredibile.' },
+  { giorni: 60, emoji: '💎', titolo: 'Due mesi', desc: 'Hai cambiato la tua vita.' },
+  { giorni: 100, emoji: '🚀', titolo: '100 giorni', desc: 'Cento giorni. Nessuno te li toglie.' },
+];
+
 export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
   const [perche, setPerche] = useState('');
   const [moodSelezionato, setMoodSelezionato] = useState('');
-  const [giorniReali, setGiorniReali] = useState(0);
+  const [badgeModal, setBadgeModal] = useState<any>(null);
   const animaFade = useRef(new Animated.Value(0)).current;
+  const animaBadge = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     controllaOnboarding();
@@ -33,17 +44,13 @@ export default function HomeScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
-  }, [giorniReali]);
+  }, [giorni]);
 
   const richiediPermessi = async () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        programmaNotificaSera();
-      }
-    } catch (e) {
-      console.log(e);
-    }
+      if (status === 'granted') programmaNotificaSera();
+    } catch (e) {}
   };
 
   const programmaNotificaSera = async () => {
@@ -60,25 +67,22 @@ export default function HomeScreen() {
           minute: 0,
         },
       });
-    } catch (e) {
-      console.log(e);
-    }
+    } catch (e) {}
   };
 
-  const testNotifica = async () => {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Ancora Qui 🌙',
-          body: 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: 3,
-        },
-      });
-    } catch (e) {
-      console.log(e);
+  const controllaBadge = async (diff: number) => {
+    const badge = BADGES.find(b => b.giorni === diff);
+    if (badge) {
+      const key = `badge_${badge.giorni}`;
+      const già = await AsyncStorageLib.getItem(key);
+      if (!già) {
+        await AsyncStorageLib.setItem(key, 'true');
+        setBadgeModal(badge);
+        Animated.spring(animaBadge, {
+          toValue: 1,
+          useNativeDriver: true,
+        }).start();
+      }
     }
   };
 
@@ -95,14 +99,14 @@ export default function HomeScreen() {
       const oggi = new Date();
       const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
       setGiorni(diff);
-      setGiorniReali(diff);
       setPerche(percheStr || '');
       const spesaNum = spesa ? parseFloat(spesa) : 30;
       setRisparmi(diff * spesaNum);
-    } catch (e) {
-      console.log(e);
-    }
+      controllaBadge(diff);
+    } catch (e) {}
   };
+
+  const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
 
   const moods = [
     { emoji: '😴', label: 'Stanco' },
@@ -137,10 +141,27 @@ export default function HomeScreen() {
       <View style={styles.streak}>
         <View style={styles.streakTop}>
           <Text style={styles.streakLbl}>GIORNI LIBERO</Text>
+          <Text style={styles.streakNext}>
+            {BADGES.find(b => b.giorni > giorni) ? `prossimo badge: ${BADGES.find(b => b.giorni > giorni)?.emoji} a ${BADGES.find(b => b.giorni > giorni)!.giorni - giorni} giorni` : '🏆 tutti i badge!'}
+          </Text>
         </View>
         <Text style={styles.streakN}>{giorni}</Text>
         <Text style={styles.streakU}>giorni consecutivi</Text>
       </View>
+
+      {badgeRaggunti.length > 0 && (
+        <View style={styles.badgesRow}>
+          <Text style={styles.badgesLbl}>I TUOI BADGE</Text>
+          <View style={styles.badges}>
+            {badgeRaggunti.map(b => (
+              <View key={b.giorni} style={styles.badge}>
+                <Text style={styles.badgeEmoji}>{b.emoji}</Text>
+                <Text style={styles.badgeTitolo}>{b.titolo}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
 
       <View style={styles.card}>
         <View style={styles.moneyRow}>
@@ -168,23 +189,23 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.reset}
-        onPress={async () => {
-          await AsyncStorageLib.clear();
-          router.replace('/(tabs)/onboarding' as any);
-        }}
-      >
-        <Text style={styles.resetText}>🔄 Reset per test</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity style={styles.reset} onPress={testNotifica}>
-        <Text style={styles.resetText}>🔔 Test notifica</Text>
-      </TouchableOpacity>
-
       <TouchableOpacity style={styles.sos} onPress={() => router.push('/(tabs)/sos' as any)}>
         <Text style={styles.sosText}>🚨  Ho bisogno di aiuto ora</Text>
       </TouchableOpacity>
+
+      {/* MODAL BADGE */}
+      <Modal visible={!!badgeModal} transparent animationType="fade">
+        <View style={styles.modalBg}>
+          <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
+            <Text style={styles.modalEmoji}>{badgeModal?.emoji}</Text>
+            <Text style={styles.modalTitolo}>{badgeModal?.titolo}</Text>
+            <Text style={styles.modalDesc}>{badgeModal?.desc}</Text>
+            <TouchableOpacity style={styles.modalBtn} onPress={() => setBadgeModal(null)}>
+              <Text style={styles.modalBtnText}>Grazie 🙏</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
 
     </Animated.ScrollView>
   );
@@ -204,10 +225,17 @@ const styles = StyleSheet.create({
   percheLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 1.5, marginBottom: 3 },
   percheVal: { fontStyle: 'italic', fontSize: 13, color: '#ddd8cf' },
   streak: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 18 },
-  streakTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  streakTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 4 },
   streakLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5 },
+  streakNext: { fontSize: 9, color: '#c9965a' },
   streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64 },
   streakU: { fontSize: 12, color: '#5a5f72', marginBottom: 4 },
+  badgesRow: { marginHorizontal: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
+  badgesLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 10 },
+  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  badge: { alignItems: 'center', backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 12, padding: 8, minWidth: 60 },
+  badgeEmoji: { fontSize: 22, marginBottom: 4 },
+  badgeTitolo: { fontSize: 9, color: '#c9965a', textAlign: 'center' },
   card: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
   cardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 8 },
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
@@ -218,8 +246,13 @@ const styles = StyleSheet.create({
   pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
   pillText: { fontSize: 11, color: '#5a5f72' },
   pillOnText: { fontSize: 11, color: '#c9965a' },
-  reset: { marginHorizontal: 20, marginTop: 14, padding: 10, alignItems: 'center' },
-  resetText: { fontSize: 11, color: '#5a5f72' },
-  sos: { margin: 20, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center' },
+  sos: { margin: 20, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
   sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center' },
+  modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 280 },
+  modalEmoji: { fontSize: 56, marginBottom: 16 },
+  modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center' },
+  modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
+  modalBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
 });

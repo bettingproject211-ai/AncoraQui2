@@ -1,67 +1,88 @@
+import AsyncStorageLib from '@react-native-async-storage/async-storage';
+import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 export default function SoldiScreen() {
+  const [giorni, setGiorni] = useState(0);
+  const [risparmi, setRisparmi] = useState(0);
+  const [spesaGiornaliera, setSpesaGiornaliera] = useState(30);
+
+  useEffect(() => {
+    caricaDati();
+  }, []);
+
+  const caricaDati = async () => {
+    try {
+      const dataInizio = await AsyncStorageLib.getItem('dataInizio');
+      const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
+      if (dataInizio) {
+        const inizio = new Date(dataInizio);
+        const oggi = new Date();
+        const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
+        setGiorni(diff);
+        const spesaNum = spesa ? parseFloat(spesa) : 30;
+        setSpesaGiornaliera(spesaNum);
+        setRisparmi(diff * spesaNum);
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  };
+
+  const obiettivo = 3000;
+  const percentuale = Math.min((risparmi / obiettivo) * 100, 100);
+
+  const traduzioni = [
+    { icon: '🛒', titolo: 'Spesa alimentare', sub: `${Math.floor(risparmi / 235)} mesi per due`, raggiunto: risparmi >= 235 },
+    { icon: '🏠', titolo: 'Affitto', sub: `${Math.floor(risparmi / 400)} mesi coperti`, raggiunto: risparmi >= 400 },
+    { icon: '👶', titolo: 'Primo corredino', sub: 'Tutto quello che serve', raggiunto: risparmi >= 500 },
+    { icon: '✈️', titolo: 'Vacanza per due', sub: 'Una settimana al mare', raggiunto: risparmi >= 1000 },
+  ];
+
   return (
     <ScrollView style={styles.container}>
+
       <View style={styles.header}>
         <Text style={styles.lbl}>I TUOI SOLDI REALI</Text>
         <Text style={styles.titolo}>Non sono numeri.</Text>
-        <Text style={styles.sub}>€20 non è poco. È una cena. Eccoli tradotti in vita vera.</Text>
+        <Text style={styles.sub}>€{spesaGiornaliera} al giorno sembrano niente. Eccoli tradotti in vita vera.</Text>
       </View>
+
       <View style={styles.bigN}>
-        <Text style={styles.bigVal}>€1.410</Text>
-        <Text style={styles.bigSub}>risparmiati in 47 giorni</Text>
+        <Text style={styles.bigVal}>€{risparmi.toFixed(0)}</Text>
+        <Text style={styles.bigSub}>risparmiati in {giorni} giorni</Text>
         <View style={styles.barWrap}>
-          <View style={styles.barFill} />
+          <View style={[styles.barFill, { width: `${percentuale}%` }]} />
         </View>
         <View style={styles.barGoals}>
           <Text style={styles.barGoalText}>€0</Text>
-          <Text style={styles.barGoalText}>Obiettivo: €3.000 🏠</Text>
+          <Text style={styles.barGoalText}>Obiettivo: €{obiettivo} 🏠</Text>
         </View>
       </View>
+
       <View style={styles.traduzioni}>
         <Text style={styles.trHead}>COSA SIGNIFICANO DAVVERO</Text>
-        <View style={styles.trItem}>
-          <Text style={styles.trIcon}>🛒</Text>
-          <View style={styles.trDesc}>
-            <Text style={styles.trTitle}>Spesa alimentare</Text>
-            <Text style={styles.trSub}>6 mesi per due</Text>
+        {traduzioni.map((t) => (
+          <View key={t.titolo} style={styles.trItem}>
+            <Text style={styles.trIcon}>{t.icon}</Text>
+            <View style={styles.trDesc}>
+              <Text style={styles.trTitle}>{t.titolo}</Text>
+              <Text style={styles.trSub}>{t.sub}</Text>
+            </View>
+            <Text style={t.raggiunto ? styles.trOk : styles.trNo}>{t.raggiunto ? '✓' : '○'}</Text>
           </View>
-          <Text style={styles.trOk}>✓</Text>
-        </View>
-        <View style={styles.trItem}>
-          <Text style={styles.trIcon}>🏠</Text>
-          <View style={styles.trDesc}>
-            <Text style={styles.trTitle}>Affitto</Text>
-            <Text style={styles.trSub}>3 mesi coperti</Text>
-          </View>
-          <Text style={styles.trOk}>✓</Text>
-        </View>
-        <View style={styles.trItem}>
-          <Text style={styles.trIcon}>👶</Text>
-          <View style={styles.trDesc}>
-            <Text style={styles.trTitle}>Primo corredino</Text>
-            <Text style={styles.trSub}>Tutto quello che serve</Text>
-          </View>
-          <Text style={styles.trOk}>✓</Text>
-        </View>
-        <View style={styles.trItem}>
-          <Text style={styles.trIcon}>✈️</Text>
-          <View style={styles.trDesc}>
-            <Text style={styles.trTitle}>Vacanza per due</Text>
-            <Text style={styles.trSub}>Una settimana al mare</Text>
-          </View>
-          <Text style={styles.trNo}>○</Text>
-        </View>
+        ))}
       </View>
+
       <View style={styles.notifica}>
         <Text style={styles.notifIcon}>🌙</Text>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.notifT}>Notifica sera intelligente</Text>
           <Text style={styles.notifS}>Hai segnato "stanco" — l'app arriva prima dell'impulso.</Text>
           <Text style={styles.notifTime}>Ogni sera quando serve — mai quando non serve</Text>
         </View>
       </View>
+
     </ScrollView>
   );
 }
@@ -76,7 +97,7 @@ const styles = StyleSheet.create({
   bigVal: { fontSize: 52, fontWeight: '700', color: '#c9965a', lineHeight: 56 },
   bigSub: { fontSize: 12, color: '#5a5f72', marginBottom: 14 },
   barWrap: { width: '100%', height: 4, backgroundColor: '#181c2a', borderRadius: 2, overflow: 'hidden', marginBottom: 6 },
-  barFill: { width: '47%', height: '100%', backgroundColor: '#c9965a', borderRadius: 2 },
+  barFill: { height: '100%', backgroundColor: '#c9965a', borderRadius: 2 },
   barGoals: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
   barGoalText: { fontSize: 10, color: '#5a5f72' },
   traduzioni: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, overflow: 'hidden' },

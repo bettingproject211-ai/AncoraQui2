@@ -1,92 +1,121 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-export default function SosScreen() {
-  const pulse = useRef(new Animated.Value(1)).current;
-  const [perche, setPerche] = useState('');
+export default function RicadutaScreen() {
+  const [giorni, setGiorni] = useState(0);
+  const [risparmi, setRisparmi] = useState(0);
+  const [triggerSelezionato, setTriggerSelezionato] = useState('');
 
   useEffect(() => {
-    caricaPerche();
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.2,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    caricaDati();
   }, []);
 
-  const caricaPerche = async () => {
+  const caricaDati = async () => {
     try {
-      const p = await AsyncStorageLib.getItem('perche');
-      setPerche(p || '');
+      const dataInizio = await AsyncStorageLib.getItem('dataInizio');
+      const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
+      if (dataInizio) {
+        const inizio = new Date(dataInizio);
+        const oggi = new Date();
+        const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
+        setGiorni(diff);
+        const spesaNum = spesa ? parseFloat(spesa) : 30;
+        setRisparmi(diff * spesaNum);
+      }
     } catch (e) {
       console.log(e);
     }
   };
 
+  const triggers = [
+    { emoji: '😴', label: 'Ero stanco dopo una lunga giornata' },
+    { emoji: '😔', label: 'Ero solo' },
+    { emoji: '😤', label: 'Noia o nervosismo' },
+    { emoji: '💬', label: 'Altro' },
+  ];
+
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.momento}>MOMENTO DIFFICILE</Text>
-        <Text style={styles.titolo}>Sei ancora qui.{'\n'}Questo è tutto.</Text>
-        <Text style={styles.sub}>Non devi fare niente adesso.{'\n'}Solo restare qui un momento.</Text>
-      </View>
-      <View style={styles.respiro}>
-        <Animated.View style={[styles.ring, { transform: [{ scale: pulse }] }]}>
-          <Text style={styles.ringEmoji}>🌬️</Text>
-        </Animated.View>
-        <Text style={styles.respiroLbl}>RESPIRA CON ME</Text>
-        <Text style={styles.respiroSub}>4 secondi dentro · 4 fuori</Text>
-      </View>
-      <View style={styles.perche}>
-        <Text style={styles.percheLbl}>IL TUO PERCHÉ</Text>
-        <Text style={styles.percheVal}>"{perche}"</Text>
-      </View>
-      <View style={styles.presenza}>
-        <Text style={styles.presenzaText}>
-          <Text style={styles.presenzaBold}>Non devi essere forte adesso.{'\n'}</Text>
-          Solo non aprire quell'altra app per i prossimi 10 minuti.
+
+      <View style={styles.top}>
+        <Text style={styles.emoji}>🤲</Text>
+        <Text style={styles.titolo}>Sei ancora qui.</Text>
+        <Text style={styles.sub}>
+          Quei <Text style={styles.highlight}>{giorni} giorni</Text> sono dentro di te per sempre. Nessuno te li toglie.
         </Text>
       </View>
-      <TouchableOpacity style={styles.serd}>
-        <Text style={styles.serdIcon}>📞</Text>
-        <View>
-          <Text style={styles.serdLbl}>PARLA CON QUALCUNO ORA</Text>
-          <Text style={styles.serdNum}>800 274 274 — SerD</Text>
+
+      <View style={styles.giorni}>
+        <Text style={styles.giorniLbl}>NON È ZERO. MAI.</Text>
+        <View style={styles.giorniRow}>
+          <Text style={styles.giorniN}>{giorni}</Text>
+          <Text style={styles.giorniT}>giorni di forza reale che hai dimostrato a te stesso.</Text>
         </View>
-      </TouchableOpacity>
+        <View style={styles.divider} />
+        <Text style={styles.giorniNote}>La ricaduta fa parte del percorso — non è la fine del percorso.</Text>
+      </View>
+
+      <View style={styles.soldiCard}>
+        <Text style={styles.soldiLbl}>QUELLO CHE HAI GIÀ FATTO</Text>
+        <View style={styles.soldiRow}>
+          <Text style={styles.soldiIcon}>💶</Text>
+          <Text style={styles.soldiDesc}>Risparmiati in {giorni} giorni</Text>
+          <Text style={styles.soldiVal}>€{risparmi.toFixed(0)}</Text>
+        </View>
+      </View>
+
+      <View style={styles.cosa}>
+        <Text style={styles.cosaQ}>Cosa è successo prima? Solo per capire.</Text>
+        {triggers.map((t) => (
+          <TouchableOpacity
+            key={t.label}
+            style={[styles.cosaOpt, triggerSelezionato === t.label && styles.cosaOptOn]}
+            onPress={() => setTriggerSelezionato(t.label)}
+          >
+            <Text style={styles.cosaOptText}>{t.emoji}  {t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={styles.cta}>
+        <Text style={styles.ctaMsg}>Quando sei pronto, ricominciamo. Nessuna fretta.</Text>
+        <TouchableOpacity style={styles.ctaBtn}>
+          <Text style={styles.ctaBtnText}>▶  Riprendi il percorso</Text>
+        </TouchableOpacity>
+      </View>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
-  header: { padding: 28, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#181c2a', backgroundColor: 'rgba(184,92,92,0.07)' },
-  momento: { fontSize: 10, color: '#b85c5c', letterSpacing: 2, marginBottom: 10 },
-  titolo: { fontSize: 26, fontWeight: '700', color: '#ddd8cf', lineHeight: 32, marginBottom: 10 },
-  sub: { fontSize: 13, color: '#5a5f72', lineHeight: 22 },
-  respiro: { margin: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 20, alignItems: 'center' },
-  ring: { width: 72, height: 72, borderRadius: 36, borderWidth: 1, borderColor: '#5d8fa8', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
-  ringEmoji: { fontSize: 28 },
-  respiroLbl: { fontSize: 11, color: '#5d8fa8', letterSpacing: 2, marginBottom: 4 },
-  respiroSub: { fontSize: 11, color: '#5a5f72' },
-  perche: { marginHorizontal: 20, marginBottom: 20, backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 16, alignItems: 'center' },
-  percheLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 8 },
-  percheVal: { fontSize: 16, fontStyle: 'italic', color: '#ddd8cf', textAlign: 'center', lineHeight: 24 },
-  presenza: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
-  presenzaText: { fontSize: 13, color: '#5a5f72', lineHeight: 22, textAlign: 'center', fontStyle: 'italic' },
-  presenzaBold: { color: '#a8a29a', fontStyle: 'normal', fontWeight: '500' },
-  serd: { marginHorizontal: 20, marginBottom: 40, backgroundColor: 'rgba(184,92,92,0.08)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.25)', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  serdIcon: { fontSize: 24 },
-  serdLbl: { fontSize: 9, color: '#b85c5c', letterSpacing: 1, marginBottom: 4 },
-  serdNum: { fontSize: 16, fontWeight: '600', color: '#ddd8cf' },
+  top: { padding: 28, paddingTop: 60, alignItems: 'center' },
+  emoji: { fontSize: 44, marginBottom: 14 },
+  titolo: { fontSize: 26, fontWeight: '700', color: '#ddd8cf', marginBottom: 10, textAlign: 'center' },
+  sub: { fontSize: 13, color: '#5a5f72', lineHeight: 22, textAlign: 'center', paddingHorizontal: 10 },
+  highlight: { color: '#e0b87a', fontWeight: '500' },
+  giorni: { marginHorizontal: 20, marginBottom: 14, backgroundColor: 'rgba(106,170,130,0.05)', borderWidth: 1, borderColor: 'rgba(106,170,130,0.18)', borderRadius: 20, padding: 16 },
+  giorniLbl: { fontSize: 9, color: '#6aaa82', letterSpacing: 2, marginBottom: 10 },
+  giorniRow: { flexDirection: 'row', alignItems: 'baseline', gap: 8, marginBottom: 6 },
+  giorniN: { fontSize: 42, fontWeight: '700', color: '#6aaa82', lineHeight: 46 },
+  giorniT: { fontSize: 13, color: '#5a5f72', lineHeight: 20, flex: 1 },
+  divider: { height: 1, backgroundColor: '#181c2a', marginVertical: 10 },
+  giorniNote: { fontSize: 12, color: '#5a5f72', fontStyle: 'italic', lineHeight: 18 },
+  soldiCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
+  soldiLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 10 },
+  soldiRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  soldiIcon: { fontSize: 18 },
+  soldiDesc: { flex: 1, fontSize: 12, color: '#5a5f72' },
+  soldiVal: { fontSize: 16, color: '#c9965a', fontWeight: '700' },
+  cosa: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
+  cosaQ: { fontSize: 13, color: '#ddd8cf', fontWeight: '500', marginBottom: 10, lineHeight: 20 },
+  cosaOpt: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 10, marginBottom: 6 },
+  cosaOptOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
+  cosaOptText: { fontSize: 12, color: '#5a5f72' },
+  cta: { marginHorizontal: 20, marginBottom: 40, backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.16)', borderRadius: 18, padding: 16, alignItems: 'center' },
+  ctaMsg: { fontSize: 13, color: '#a8a29a', lineHeight: 20, marginBottom: 12, textAlign: 'center' },
+  ctaBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 20, width: '100%', alignItems: 'center' },
+  ctaBtnText: { color: '#1a0f00', fontSize: 13, fontWeight: '700' },
 });

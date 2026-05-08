@@ -1,7 +1,14 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+function TabBarIcon({ emoji, color }: { emoji: string; color: string }) {
+  return <Text style={{ fontSize: 16, color }}>{emoji}</Text>;
+}
 
 export default function TabLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -10,8 +17,9 @@ export default function TabLayout() {
           backgroundColor: '#0c0f1a',
           borderTopColor: '#181c2a',
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom + 8,
+          paddingBottom: insets.bottom + 10,
+          paddingTop: 8,
         },
         tabBarActiveTintColor: '#c9965a',
         tabBarInactiveTintColor: '#5a5f72',
@@ -21,35 +29,35 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🏠</Text>,
+          tabBarIcon: ({ color }) => <TabBarIcon emoji="🏠" color={color} />,
         }}
       />
       <Tabs.Screen
         name="sos"
         options={{
           title: 'SOS',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🚨</Text>,
+          tabBarIcon: ({ color }) => <TabBarIcon emoji="🚨" color={color} />,
         }}
       />
       <Tabs.Screen
         name="ricaduta"
         options={{
           title: 'Ricaduta',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>🤲</Text>,
+          tabBarIcon: ({ color }) => <TabBarIcon emoji="🤲" color={color} />,
         }}
       />
       <Tabs.Screen
         name="voci"
         options={{
           title: 'Voci',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>👥</Text>,
+          tabBarIcon: ({ color }) => <TabBarIcon emoji="👥" color={color} />,
         }}
       />
       <Tabs.Screen
         name="soldi"
         options={{
           title: 'Soldi',
-          tabBarIcon: ({ color }) => <Text style={{ fontSize: 18, color }}>💶</Text>,
+          tabBarIcon: ({ color }) => <TabBarIcon emoji="💶" color={color} />,
         }}
       />
       <Tabs.Screen
