@@ -1,10 +1,12 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
+  const [nome, setNome] = useState('');
   const [perche, setPerche] = useState('');
   const [spesa, setSpesa] = useState('');
   const [contattoNome, setContattoNome] = useState('');
@@ -13,9 +15,11 @@ export default function OnboardingScreen() {
 
   const inizia = async () => {
     if (!perche || !spesa || !accettato) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await AsyncStorageLib.setItem('dataInizio', new Date().toISOString());
     await AsyncStorageLib.setItem('spesaGiornaliera', spesa);
     await AsyncStorageLib.setItem('perche', perche);
+    if (nome) await AsyncStorageLib.setItem('nomeUtente', nome);
     if (contattoNome) await AsyncStorageLib.setItem('contattoNome', contattoNome);
     if (contattoNumero) await AsyncStorageLib.setItem('contattoNumero', contattoNumero);
     router.replace('/');
@@ -64,10 +68,14 @@ export default function OnboardingScreen() {
               <View key={i} style={[styles.dot, step === i && styles.dotOn]} />
             ))}
           </View>
-          <TouchableOpacity style={styles.nextBtn} onPress={() => setStep(step + 1)}>
-            <Text style={styles.nextBtnText}>
-              {step === 2 ? 'Iniziamo →' : 'Continua →'}
-            </Text>
+          <TouchableOpacity
+            style={styles.nextBtn}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setStep(step + 1);
+            }}
+          >
+            <Text style={styles.nextBtnText}>{step === 2 ? 'Iniziamo →' : 'Continua →'}</Text>
           </TouchableOpacity>
           {step > 0 && (
             <TouchableOpacity onPress={() => setStep(step - 1)}>
@@ -85,6 +93,18 @@ export default function OnboardingScreen() {
       <View style={styles.formHeader}>
         <Text style={styles.formTitolo}>Configuriamo insieme.</Text>
         <Text style={styles.formSub}>Tutto rimane solo sul tuo telefono.</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardLbl}>IL TUO NOME — opzionale</Text>
+        <Text style={styles.cardDesc}>Appare solo sull'avatar in alto. Nessuno lo vede.</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Es. Marco, Soufiane..."
+          placeholderTextColor="#5a5f72"
+          value={nome}
+          onChangeText={setNome}
+        />
       </View>
 
       <View style={styles.card}>
@@ -148,7 +168,10 @@ export default function OnboardingScreen() {
             <Text style={styles.legalLink}>Termini di Utilizzo</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity style={styles.checkRow} onPress={() => setAccettato(!accettato)}>
+        <TouchableOpacity style={styles.checkRow} onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setAccettato(!accettato);
+        }}>
           <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
             {accettato && <Text style={styles.checkmark}>✓</Text>}
           </View>
@@ -171,7 +194,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
   intro: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, paddingTop: 100 },
   introEmoji: { fontSize: 56, marginBottom: 28 },
-  introTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 30, marginBottom: 16 },
+  introTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 30, marginBottom: 16, fontFamily: 'Lora_700Bold' },
   introTesto: { fontSize: 16, color: '#5a5f72', textAlign: 'center', lineHeight: 26 },
   istruzioniCard: { marginTop: 28, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 18, width: '100%' },
   istruzioniLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 8 },
@@ -184,7 +207,7 @@ const styles = StyleSheet.create({
   nextBtnText: { color: '#1a0f00', fontSize: 16, fontWeight: '700' },
   backText: { fontSize: 13, color: '#5a5f72' },
   formHeader: { padding: 28, paddingTop: 60, alignItems: 'center' },
-  formTitolo: { fontSize: 24, fontWeight: '700', color: '#ddd8cf', marginBottom: 6 },
+  formTitolo: { fontSize: 24, fontWeight: '700', color: '#ddd8cf', marginBottom: 6, fontFamily: 'Lora_700Bold' },
   formSub: { fontSize: 13, color: '#5a5f72' },
   card: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 18 },
   cardLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 6 },
