@@ -1,7 +1,7 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno' },
@@ -148,6 +148,36 @@ export default function ProfiloScreen() {
         </View>
       )}
 
+      {/* LEGALE */}
+      <View style={styles.legalCard}>
+        <Text style={styles.cardLbl}>INFORMAZIONI LEGALI</Text>
+        <TouchableOpacity
+          style={styles.legalRow}
+          onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}
+        >
+          <Text style={styles.legalText}>Privacy Policy</Text>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+        <View style={styles.legalDivider} />
+        <TouchableOpacity
+          style={styles.legalRow}
+          onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}
+        >
+          <Text style={styles.legalText}>Termini di Utilizzo</Text>
+          <Text style={styles.legalArrow}>→</Text>
+        </TouchableOpacity>
+        <View style={styles.legalDivider} />
+        <TouchableOpacity
+          style={styles.legalRow}
+          onPress={() => Linking.openURL('tel:800274274')}
+        >
+          <Text style={styles.legalText}>SerD — 800 274 274</Text>
+          <Text style={styles.legalArrow}>📞</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Text style={styles.version}>Ancora Qui v1.0.0</Text>
+
       <TouchableOpacity style={styles.resetBtn} onPress={resetApp}>
         <Text style={styles.resetText}>🔄 Reset per test</Text>
       </TouchableOpacity>
@@ -203,7 +233,13 @@ const styles = StyleSheet.create({
   badgeItemLocked: { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: '#181c2a' },
   badgeEmoji: { fontSize: 24, marginBottom: 4 },
   badgeTitolo: { fontSize: 9, color: '#c9965a', textAlign: 'center' },
-  resetBtn: { marginHorizontal: 20, marginTop: 20, marginBottom: 40, padding: 14, alignItems: 'center' },
+  legalCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  legalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
+  legalText: { fontSize: 13, color: '#ddd8cf' },
+  legalArrow: { fontSize: 13, color: '#5a5f72' },
+  legalDivider: { height: 1, backgroundColor: '#181c2a' },
+  version: { textAlign: 'center', fontSize: 11, color: '#5a5f72', marginTop: 20 },
+  resetBtn: { marginHorizontal: 20, marginTop: 8, marginBottom: 40, padding: 14, alignItems: 'center' },
   resetText: { fontSize: 12, color: '#5a5f72' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },

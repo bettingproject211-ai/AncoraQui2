@@ -1,9 +1,7 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Dimensions, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-
-const { width } = Dimensions.get('window');
+import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function OnboardingScreen() {
   const [step, setStep] = useState(0);
@@ -47,11 +45,9 @@ export default function OnboardingScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.intro}>
-
           <Text style={styles.introEmoji}>{schermata.emoji}</Text>
           <Text style={styles.introTitolo}>{schermata.titolo}</Text>
           <Text style={styles.introTesto}>{schermata.testo}</Text>
-
           {schermata.istruzioni && (
             <View style={styles.istruzioniCard}>
               <Text style={styles.istruzioniLbl}>COME FARLO</Text>
@@ -61,9 +57,7 @@ export default function OnboardingScreen() {
               </Text>
             </View>
           )}
-
         </View>
-
         <View style={styles.introBottom}>
           <View style={styles.dots}>
             {[0, 1, 2].map(i => (
@@ -145,11 +139,20 @@ export default function OnboardingScreen() {
           Ancora Qui è uno strumento di supporto e non sostituisce il parere di un professionista della salute mentale.{'\n\n'}
           Se sei in crisi chiama il SerD al numero gratuito 800 274 274.
         </Text>
+        <View style={styles.legalLinks}>
+          <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
+            <Text style={styles.legalLink}>Privacy Policy</Text>
+          </TouchableOpacity>
+          <Text style={styles.legalSep}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}>
+            <Text style={styles.legalLink}>Termini di Utilizzo</Text>
+          </TouchableOpacity>
+        </View>
         <TouchableOpacity style={styles.checkRow} onPress={() => setAccettato(!accettato)}>
           <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
             {accettato && <Text style={styles.checkmark}>✓</Text>}
           </View>
-          <Text style={styles.checkLabel}>Ho capito, voglio continuare</Text>
+          <Text style={styles.checkLabel}>Ho letto e accetto Privacy Policy e Termini</Text>
         </TouchableOpacity>
       </View>
 
@@ -190,6 +193,9 @@ const styles = StyleSheet.create({
   disclaimerCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: 'rgba(184,92,92,0.05)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.2)', borderRadius: 20, padding: 18 },
   disclaimerTitolo: { fontSize: 14, fontWeight: '700', color: '#ddd8cf', marginBottom: 10 },
   disclaimerTesto: { fontSize: 12, color: '#5a5f72', lineHeight: 20, marginBottom: 14 },
+  legalLinks: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  legalLink: { fontSize: 12, color: '#c9965a', textDecorationLine: 'underline' },
+  legalSep: { fontSize: 12, color: '#5a5f72' },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, borderColor: '#5a5f72', alignItems: 'center', justifyContent: 'center' },
   checkboxOn: { backgroundColor: '#c9965a', borderColor: '#c9965a' },
