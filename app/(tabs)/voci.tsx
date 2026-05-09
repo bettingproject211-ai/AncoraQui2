@@ -1,6 +1,33 @@
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
+
+const SkeletonCard = () => {
+  const opacita = useRef(new Animated.Value(0.3)).current;
+
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(opacita, { toValue: 0.7, duration: 800, useNativeDriver: true }),
+        Animated.timing(opacita, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
+
+  return (
+    <Animated.View style={[styles.skeletonCard, { opacity: opacita }]}>
+      <View style={styles.skeletonTop}>
+        <View style={styles.skeletonAvatar} />
+        <View style={styles.skeletonInfo}>
+          <View style={styles.skeletonNome} />
+          <View style={styles.skeletonTempo} />
+        </View>
+      </View>
+      <View style={styles.skeletonTesto1} />
+      <View style={styles.skeletonTesto2} />
+    </Animated.View>
+  );
+};
 
 export default function VociScreen() {
   const [posts, setPosts] = useState<any[]>([]);
@@ -8,6 +35,8 @@ export default function VociScreen() {
   const [loading, setLoading] = useState(true);
   const [invio, setInvio] = useState(false);
   const [online, setOnline] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errore, setErrore] = useState(false);
 
   useEffect(() => {
     caricaPosts();
@@ -27,14 +56,26 @@ export default function VociScreen() {
 
   const caricaPosts = async () => {
     try {
-      const { data } = await supabase
+      setErrore(false);
+      const { data, error } = await supabase
         .from('voci')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(20);
+      if (error) throw error;
       if (data) setPosts(data);
-    } catch (e) {}
-    finally { setLoading(false); }
+    } catch (e) {
+      setErrore(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    caricaPosts();
+    caricaOnline();
   };
 
   const inviaPost = async () => {
@@ -46,7 +87,7 @@ export default function VociScreen() {
       const emoji = emojis[Math.floor(Math.random() * emojis.length)];
       const nome = nomi[Math.floor(Math.random() * nomi.length)] + '_' + Math.floor(Math.random() * 99);
       const { error } = await supabase.from('voci').insert({
-        testo: testo.trim(),
+        testo: testo.trim().slice(0, 500),
         emoji,
         nickname: nome,
         giorni: 0,
@@ -70,7 +111,17 @@ export default function VociScreen() {
   };
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView
+      style={styles.container}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor="#c9965a"
+          colors={['#c9965a']}
+        />
+      }
+    >
       <View style={styles.topbar}>
         <Text style={styles.titolo}>Voci</Text>
         <View style={styles.online}>
@@ -89,16 +140,34 @@ export default function VociScreen() {
           placeholder="Scrivi — nessuno sa chi sei..."
           placeholderTextColor="#5a5f72"
           value={testo}
-          onChangeText={setTesto}
+          onChangeText={(t) => setTesto(t.slice(0, 500))}
           multiline
+          maxLength={500}
         />
         <TouchableOpacity style={styles.sendBtn} onPress={inviaPost} disabled={invio}>
           <Text style={styles.sendText}>{invio ? '...' : '→'}</Text>
         </TouchableOpacity>
       </View>
 
+      {testo.length > 400 && (
+        <Text style={styles.contatore}>{500 - testo.length} caratteri rimasti</Text>
+      )}
+
       {loading ? (
-        <ActivityIndicator color="#c9965a" style={{ marginTop: 40 }} />
+        <>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </>
+      ) : errore ? (
+        <View style={styles.erroreBox}>
+          <Text style={styles.erroreEmoji}>📡</Text>
+          <Text style={styles.erroreTitolo}>Connessione assente</Text>
+          <Text style={styles.erroreSub}>Tira giù per riprovare</Text>
+          <TouchableOpacity style={styles.erroreBtn} onPress={caricaPosts}>
+            <Text style={styles.erroreBtnText}>Riprova</Text>
+          </TouchableOpacity>
+        </View>
       ) : posts.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyText}>Ancora nessuna voce.{'\n'}Sii il primo a scrivere.</Text>
@@ -110,7 +179,7 @@ export default function VociScreen() {
               <View style={styles.avatar}>
                 <Text style={styles.avEmoji}>{post.emoji}</Text>
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.postName}>{post.nickname}</Text>
                 <Text style={styles.postTime}>{formatTempo(post.created_at)}</Text>
               </View>
@@ -124,6 +193,7 @@ export default function VociScreen() {
           </View>
         ))
       )}
+
     </ScrollView>
   );
 }
@@ -137,12 +207,27 @@ const styles = StyleSheet.create({
   onlineText: { fontSize: 11, color: '#6aaa82' },
   anonNote: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 12, padding: 10 },
   anonText: { fontSize: 11, color: '#5a5f72', textAlign: 'center', fontStyle: 'italic' },
-  newPost: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  newPost: { marginHorizontal: 20, marginBottom: 8, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 8 },
   input: { flex: 1, color: '#ddd8cf', fontSize: 12, minHeight: 40 },
   sendBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
   sendText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
+  contatore: { marginHorizontal: 20, marginBottom: 8, fontSize: 10, color: '#b85c5c', textAlign: 'right' },
   empty: { padding: 40, alignItems: 'center' },
   emptyText: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22 },
+  erroreBox: { padding: 40, alignItems: 'center' },
+  erroreEmoji: { fontSize: 40, marginBottom: 12 },
+  erroreTitolo: { fontSize: 16, fontWeight: '600', color: '#ddd8cf', marginBottom: 6 },
+  erroreSub: { fontSize: 13, color: '#5a5f72', marginBottom: 20 },
+  erroreBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
+  erroreBtnText: { color: '#1a0f00', fontSize: 13, fontWeight: '700' },
+  skeletonCard: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
+  skeletonTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
+  skeletonAvatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#1e2336' },
+  skeletonInfo: { flex: 1, gap: 6 },
+  skeletonNome: { height: 10, backgroundColor: '#1e2336', borderRadius: 5, width: '40%' },
+  skeletonTempo: { height: 8, backgroundColor: '#1e2336', borderRadius: 4, width: '25%' },
+  skeletonTesto1: { height: 10, backgroundColor: '#1e2336', borderRadius: 5, width: '100%', marginBottom: 6 },
+  skeletonTesto2: { height: 10, backgroundColor: '#1e2336', borderRadius: 5, width: '70%' },
   post: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
   postTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(201,150,90,0.15)', alignItems: 'center', justifyContent: 'center' },

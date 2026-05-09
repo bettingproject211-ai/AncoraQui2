@@ -2,7 +2,7 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
 
 Notifications.setNotificationHandler({
@@ -59,7 +59,6 @@ export default function HomeScreen() {
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
 
-  // Ricarica dati ogni volta che la schermata è in focus
   useFocusEffect(
     useCallback(() => {
       caricaDati();
@@ -101,8 +100,7 @@ export default function HomeScreen() {
       setRisparmi(diff * spesaNum);
       controllaBadge(diff);
 
-      // Streak settimanale corretto
-      const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1; // 0=Lun, 6=Dom
+      const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
       const nuovaSettimana = Array(7).fill(false).map((_, i) => {
         const giorniDaOggi = giornoOggi - i;
         return giorniDaOggi >= 0 && giorniDaOggi < diff;
@@ -225,6 +223,15 @@ export default function HomeScreen() {
     }
   };
 
+  const condividiMilestone = async () => {
+    if (!badgeModal) return;
+    try {
+      await Share.share({
+        message: `${badgeModal.emoji} Ho raggiunto "${badgeModal.titolo}" con Ancora Qui.\n\n${badgeModal.desc}\n\nAnche tu puoi farcela. Sei ancora qui. 🤝`,
+      });
+    } catch (e) {}
+  };
+
   const premiSos = () => {
     Animated.sequence([
       Animated.timing(animaSos, { toValue: 0.95, duration: 100, useNativeDriver: true }),
@@ -247,13 +254,8 @@ export default function HomeScreen() {
 
       <View style={styles.topbar}>
         <Text style={styles.logo}>Ancora Qui</Text>
-        <TouchableOpacity
-          style={styles.avatar}
-          onPress={() => router.push('/(tabs)/profilo' as any)}
-        >
-          <Text style={styles.avatarText}>
-            {nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}
-          </Text>
+        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profilo' as any)}>
+          <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -282,10 +284,7 @@ export default function HomeScreen() {
         <View style={styles.weekRow}>
           {giorniSettimana.map((g, i) => (
             <View key={i} style={styles.weekDay}>
-              <View style={[
-                styles.weekDot,
-                settimana[i] && styles.weekDotOn,
-              ]} />
+              <View style={[styles.weekDot, settimana[i] && styles.weekDotOn]} />
               <Text style={styles.weekLbl}>{g}</Text>
             </View>
           ))}
@@ -354,13 +353,16 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* MODAL BADGE */}
+      {/* MODAL BADGE CON CONDIVISIONE */}
       <Modal visible={!!badgeModal} transparent animationType="fade">
         <View style={styles.modalBg}>
           <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
             <Text style={styles.modalEmoji}>{badgeModal?.emoji}</Text>
             <Text style={styles.modalTitolo}>{badgeModal?.titolo}</Text>
             <Text style={styles.modalDesc}>{badgeModal?.desc}</Text>
+            <TouchableOpacity style={styles.modalBtnCondividi} onPress={condividiMilestone}>
+              <Text style={styles.modalBtnCondividiText}>📤  Condividi questo momento</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.modalBtn} onPress={() => setBadgeModal(null)}>
               <Text style={styles.modalBtnText}>Grazie 🙏</Text>
             </TouchableOpacity>
@@ -452,10 +454,12 @@ const styles = StyleSheet.create({
   sos: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
   sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 280 },
+  modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 300 },
   modalEmoji: { fontSize: 56, marginBottom: 16 },
   modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center' },
-  modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
+  modalBtnCondividi: { backgroundColor: 'rgba(201,150,90,0.1)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
+  modalBtnCondividiText: { color: '#c9965a', fontSize: 14, fontWeight: '600' },
   modalBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
   modalBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
   checkinCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 24, padding: 24, width: '100%' },
