@@ -1,6 +1,6 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BADGES = [
@@ -23,9 +23,11 @@ export default function ProfiloScreen() {
   const [editNome, setEditNome] = useState(false);
   const [nomeTemp, setNomeTemp] = useState('');
 
-  useEffect(() => {
-    caricaDati();
-  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      caricaDati();
+    }, [])
+  );
 
   const caricaDati = async () => {
     try {
@@ -61,7 +63,7 @@ export default function ProfiloScreen() {
   const resetApp = () => {
     Alert.alert(
       'Reset app',
-      'Vuoi resettare tutti i dati? Utile per testare.',
+      'Vuoi resettare tutti i dati?',
       [
         { text: 'Annulla', style: 'cancel' },
         {
@@ -148,29 +150,19 @@ export default function ProfiloScreen() {
         </View>
       )}
 
-      {/* LEGALE */}
       <View style={styles.legalCard}>
         <Text style={styles.cardLbl}>INFORMAZIONI LEGALI</Text>
-        <TouchableOpacity
-          style={styles.legalRow}
-          onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}
-        >
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
           <Text style={styles.legalText}>Privacy Policy</Text>
           <Text style={styles.legalArrow}>→</Text>
         </TouchableOpacity>
         <View style={styles.legalDivider} />
-        <TouchableOpacity
-          style={styles.legalRow}
-          onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}
-        >
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}>
           <Text style={styles.legalText}>Termini di Utilizzo</Text>
           <Text style={styles.legalArrow}>→</Text>
         </TouchableOpacity>
         <View style={styles.legalDivider} />
-        <TouchableOpacity
-          style={styles.legalRow}
-          onPress={() => Linking.openURL('tel:800274274')}
-        >
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:800274274')}>
           <Text style={styles.legalText}>SerD — 800 274 274</Text>
           <Text style={styles.legalArrow}>📞</Text>
         </TouchableOpacity>
@@ -218,7 +210,7 @@ const styles = StyleSheet.create({
   avatarEmoji: { fontSize: 36 },
   nomeUtente: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 6 },
   giorni: { fontSize: 13, color: '#5a5f72' },
-  statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
   statItem: { flex: 1, alignItems: 'center' },
   statNum: { fontSize: 22, fontWeight: '700', color: '#6aaa82', marginBottom: 4 },
   statLbl: { fontSize: 10, color: '#5a5f72' },

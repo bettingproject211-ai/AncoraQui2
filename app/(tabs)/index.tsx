@@ -1,7 +1,7 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
-import { router } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
 
@@ -54,16 +54,22 @@ export default function HomeScreen() {
   const [checkinModal, setCheckinModal] = useState(false);
   const [checkinRisposta, setCheckinRisposta] = useState('');
   const [domandaOggi, setDomandaOggi] = useState('');
+  const [settimana, setSettimana] = useState<boolean[]>(Array(7).fill(false));
   const animaFade = useRef(new Animated.Value(0)).current;
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
 
+  // Ricarica dati ogni volta che la schermata è in focus
+  useFocusEffect(
+    useCallback(() => {
+      caricaDati();
+      caricaOnline();
+      caricaMood();
+    }, [])
+  );
+
   useEffect(() => {
-    controllaOnboarding();
     richiediPermessi();
-    caricaOnline();
-    caricaMood();
-    controllaCheckin();
   }, []);
 
   useEffect(() => {
@@ -72,7 +78,38 @@ export default function HomeScreen() {
       duration: 800,
       useNativeDriver: true,
     }).start();
+    if (giorni >= 1) controllaCheckin();
   }, [giorni]);
+
+  const caricaDati = async () => {
+    try {
+      const dataInizio = await AsyncStorageLib.getItem('dataInizio');
+      if (!dataInizio) {
+        router.replace('/(tabs)/onboarding' as any);
+        return;
+      }
+      const percheStr = await AsyncStorageLib.getItem('perche');
+      const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
+      const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
+      const inizio = new Date(dataInizio);
+      const oggi = new Date();
+      const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
+      setGiorni(diff);
+      setPerche(percheStr || '');
+      setNomeUtente(nomeStr || '');
+      const spesaNum = spesa ? parseFloat(spesa) : 30;
+      setRisparmi(diff * spesaNum);
+      controllaBadge(diff);
+
+      // Streak settimanale corretto
+      const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1; // 0=Lun, 6=Dom
+      const nuovaSettimana = Array(7).fill(false).map((_, i) => {
+        const giorniDaOggi = giornoOggi - i;
+        return giorniDaOggi >= 0 && giorniDaOggi < diff;
+      });
+      setSettimana(nuovaSettimana.reverse());
+    } catch (e) {}
+  };
 
   const controllaCheckin = async () => {
     try {
@@ -81,15 +118,14 @@ export default function HomeScreen() {
       if (ultimoCheckin !== oggi) {
         const indice = new Date().getDay() % DOMANDE.length;
         setDomandaOggi(DOMANDE[indice]);
-        setTimeout(() => setCheckinModal(true), 2000);
+        setTimeout(() => setCheckinModal(true), 3000);
       }
     } catch (e) {}
   };
 
   const salvaCheckin = async () => {
     try {
-      const oggi = new Date().toDateString();
-      await AsyncStorageLib.setItem('ultimoCheckin', oggi);
+      await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString());
       if (checkinRisposta.trim()) {
         const impulsiStr = await AsyncStorageLib.getItem('impulsi');
         const impulsi = impulsiStr ? JSON.parse(impulsiStr) : [];
@@ -130,7 +166,26 @@ export default function HomeScreen() {
   const richiediPermessi = async () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') programmaNotificaSera();
+      if (status === 'granted') {
+        programmaNotificaSera();
+        programmaNotificaMattina();
+      }
+    } catch (e) {}
+  };
+
+  const programmaNotificaMattina = async () => {
+    try {
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: 'Ancora Qui 🌅',
+          body: 'Buongiorno. Oggi è un nuovo giorno.',
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: 9,
+          minute: 0,
+        },
+      });
     } catch (e) {}
   };
 
@@ -147,6 +202,7 @@ export default function HomeScreen() {
           minute: 0,
         },
       });
+      programmaNotificaMattina();
     } catch (e) {}
   };
 
@@ -169,28 +225,6 @@ export default function HomeScreen() {
     }
   };
 
-  const controllaOnboarding = async () => {
-    try {
-      const dataInizio = await AsyncStorageLib.getItem('dataInizio');
-      if (!dataInizio) {
-        router.replace('/(tabs)/onboarding' as any);
-        return;
-      }
-      const percheStr = await AsyncStorageLib.getItem('perche');
-      const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
-      const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
-      const inizio = new Date(dataInizio);
-      const oggi = new Date();
-      const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
-      setGiorni(diff);
-      setPerche(percheStr || '');
-      setNomeUtente(nomeStr || '');
-      const spesaNum = spesa ? parseFloat(spesa) : 30;
-      setRisparmi(diff * spesaNum);
-      controllaBadge(diff);
-    } catch (e) {}
-  };
-
   const premiSos = () => {
     Animated.sequence([
       Animated.timing(animaSos, { toValue: 0.95, duration: 100, useNativeDriver: true }),
@@ -199,6 +233,8 @@ export default function HomeScreen() {
   };
 
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
+  const giorniSettimana = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+
   const moods = [
     { emoji: '😴', label: 'Stanco' },
     { emoji: '😔', label: 'Solo' },
@@ -211,8 +247,13 @@ export default function HomeScreen() {
 
       <View style={styles.topbar}>
         <Text style={styles.logo}>Ancora Qui</Text>
-        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profilo' as any)}>
-          <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '?'}</Text>
+        <TouchableOpacity
+          style={styles.avatar}
+          onPress={() => router.push('/(tabs)/profilo' as any)}
+        >
+          <Text style={styles.avatarText}>
+            {nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -233,11 +274,22 @@ export default function HomeScreen() {
         <View style={styles.streakTop}>
           <Text style={styles.streakLbl}>GIORNI LIBERO</Text>
           <Text style={styles.streakNext}>
-            {BADGES.find(b => b.giorni > giorni) ? `prossimo badge: ${BADGES.find(b => b.giorni > giorni)?.emoji} a ${BADGES.find(b => b.giorni > giorni)!.giorni - giorni} giorni` : '🏆 tutti i badge!'}
+            {BADGES.find(b => b.giorni > giorni) ? `${BADGES.find(b => b.giorni > giorni)?.emoji} tra ${BADGES.find(b => b.giorni > giorni)!.giorni - giorni}gg` : '🏆 tutti i badge!'}
           </Text>
         </View>
         <Text style={styles.streakN}>{giorni}</Text>
         <Text style={styles.streakU}>giorni consecutivi</Text>
+        <View style={styles.weekRow}>
+          {giorniSettimana.map((g, i) => (
+            <View key={i} style={styles.weekDay}>
+              <View style={[
+                styles.weekDot,
+                settimana[i] && styles.weekDotOn,
+              ]} />
+              <Text style={styles.weekLbl}>{g}</Text>
+            </View>
+          ))}
+        </View>
       </View>
 
       {badgeRaggunti.length > 0 && (
@@ -264,7 +316,7 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.cardLbl}>COME STAI STASERA?</Text>
+        <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
         <View style={styles.pills}>
           {moods.map((mood) => (
             <TouchableOpacity
@@ -329,7 +381,6 @@ export default function HomeScreen() {
               value={checkinRisposta}
               onChangeText={setCheckinRisposta}
               multiline
-              autoFocus
             />
             <View style={styles.checkinBtns}>
               <TouchableOpacity
@@ -357,8 +408,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
   logo: { fontSize: 18, color: '#c9965a', fontStyle: 'italic' },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 12, fontWeight: '700', color: '#1a0f00' },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 14, fontWeight: '700', color: '#1a0f00' },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 20, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.15)', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
   onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#5d8fa8' },
   onlineText: { fontSize: 11, color: '#5d8fa8' },
@@ -371,7 +422,12 @@ const styles = StyleSheet.create({
   streakLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5 },
   streakNext: { fontSize: 9, color: '#c9965a' },
   streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64 },
-  streakU: { fontSize: 12, color: '#5a5f72', marginBottom: 4 },
+  streakU: { fontSize: 12, color: '#5a5f72', marginBottom: 12 },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  weekDay: { alignItems: 'center', gap: 4, flex: 1 },
+  weekDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: '#1e2336' },
+  weekDotOn: { backgroundColor: '#6aaa82', borderColor: '#6aaa82' },
+  weekLbl: { fontSize: 9, color: '#5a5f72' },
   badgesRow: { marginHorizontal: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
   badgesLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 10 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
