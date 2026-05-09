@@ -241,7 +241,6 @@ export default function HomeScreen() {
 
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
   const giorniSettimana = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
-
   const moods = [
     { emoji: '😴', label: 'Stanco' },
     { emoji: '😔', label: 'Solo' },
@@ -353,7 +352,6 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </Animated.View>
 
-      {/* MODAL BADGE CON CONDIVISIONE */}
       <Modal visible={!!badgeModal} transparent animationType="fade">
         <View style={styles.modalBg}>
           <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
@@ -370,7 +368,6 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-      {/* MODAL CHECK-IN */}
       <Modal visible={checkinModal} transparent animationType="slide">
         <View style={styles.modalBg}>
           <View style={styles.checkinCard}>
@@ -409,7 +406,7 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
-  logo: { fontSize: 18, color: '#c9965a', fontStyle: 'italic' },
+  logo: { fontSize: 18, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic' },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontWeight: '700', color: '#1a0f00' },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 20, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.15)', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
@@ -418,12 +415,12 @@ const styles = StyleSheet.create({
   perche: { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 20, marginBottom: 0, backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 13 },
   percheIcon: { fontSize: 18 },
   percheLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 1.5, marginBottom: 3 },
-  percheVal: { fontStyle: 'italic', fontSize: 13, color: '#ddd8cf' },
+  percheVal: { fontFamily: 'Lora_400Regular_Italic', fontSize: 13, color: '#ddd8cf' },
   streak: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 18 },
   streakTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 4 },
   streakLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5 },
   streakNext: { fontSize: 9, color: '#c9965a' },
-  streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64 },
+  streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64, fontFamily: 'Lora_700Bold' },
   streakU: { fontSize: 12, color: '#5a5f72', marginBottom: 12 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   weekDay: { alignItems: 'center', gap: 4, flex: 1 },
@@ -439,7 +436,7 @@ const styles = StyleSheet.create({
   card: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
   cardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 8 },
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  moneyVal: { fontSize: 22, color: '#c9965a', fontWeight: '700' },
+  moneyVal: { fontSize: 22, color: '#c9965a', fontWeight: '700', fontFamily: 'Lora_700Bold' },
   moneyItem: { fontSize: 11, color: '#a8a29a', marginBottom: 4 },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: '#1e2336' },
@@ -456,7 +453,7 @@ const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 300 },
   modalEmoji: { fontSize: 56, marginBottom: 16 },
-  modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center' },
+  modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center', fontFamily: 'Lora_700Bold' },
   modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
   modalBtnCondividi: { backgroundColor: 'rgba(201,150,90,0.1)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
   modalBtnCondividiText: { color: '#c9965a', fontSize: 14, fontWeight: '600' },
@@ -464,7 +461,7 @@ const styles = StyleSheet.create({
   modalBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
   checkinCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 24, padding: 24, width: '100%' },
   checkinEmoji: { fontSize: 36, textAlign: 'center', marginBottom: 12 },
-  checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 26, marginBottom: 16 },
+  checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 26, marginBottom: 16, fontFamily: 'Lora_700Bold' },
   checkinInput: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 14, color: '#ddd8cf', fontSize: 14, minHeight: 80, marginBottom: 16 },
   checkinBtns: { flexDirection: 'row', gap: 10 },
   checkinSkip: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#111525', alignItems: 'center' },
