@@ -1,4 +1,5 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -99,7 +100,6 @@ export default function HomeScreen() {
       const spesaNum = spesa ? parseFloat(spesa) : 30;
       setRisparmi(diff * spesaNum);
       controllaBadge(diff);
-
       const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
       const nuovaSettimana = Array(7).fill(false).map((_, i) => {
         const giorniDaOggi = giornoOggi - i;
@@ -174,15 +174,8 @@ export default function HomeScreen() {
   const programmaNotificaMattina = async () => {
     try {
       await Notifications.scheduleNotificationAsync({
-        content: {
-          title: 'Ancora Qui 🌅',
-          body: 'Buongiorno. Oggi è un nuovo giorno.',
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 9,
-          minute: 0,
-        },
+        content: { title: 'Ancora Qui 🌅', body: 'Buongiorno. Oggi è un nuovo giorno.' },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 0 },
       });
     } catch (e) {}
   };
@@ -194,17 +187,14 @@ export default function HomeScreen() {
       await Notifications.cancelAllScheduledNotificationsAsync();
       await Notifications.scheduleNotificationAsync({
         content: { title: 'Ancora Qui 🌙', body },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.DAILY,
-          hour: 21,
-          minute: 0,
-        },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 0 },
       });
       programmaNotificaMattina();
     } catch (e) {}
   };
 
   const selezionaMood = async (mood: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMoodSelezionato(mood);
     await AsyncStorageLib.setItem('moodOggi', mood);
     programmaNotificaSera(mood);
@@ -218,6 +208,7 @@ export default function HomeScreen() {
       if (!già) {
         await AsyncStorageLib.setItem(key, 'true');
         setBadgeModal(badge);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         Animated.spring(animaBadge, { toValue: 1, useNativeDriver: true }).start();
       }
     }
@@ -233,6 +224,7 @@ export default function HomeScreen() {
   };
 
   const premiSos = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Animated.sequence([
       Animated.timing(animaSos, { toValue: 0.95, duration: 100, useNativeDriver: true }),
       Animated.timing(animaSos, { toValue: 1, duration: 100, useNativeDriver: true }),
@@ -251,9 +243,16 @@ export default function HomeScreen() {
   return (
     <Animated.ScrollView style={[styles.container, { opacity: animaFade }]}>
 
+      {/* HEADER CON LOGO GRANDE */}
       <View style={styles.topbar}>
-        <Text style={styles.logo}>Ancora Qui</Text>
-        <TouchableOpacity style={styles.avatar} onPress={() => router.push('/(tabs)/profilo' as any)}>
+        <View>
+          <Text style={styles.logoSmall}>benvenuto</Text>
+          <Text style={styles.logo}>Ancora Qui</Text>
+        </View>
+        <TouchableOpacity style={styles.avatar} onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push('/(tabs)/profilo' as any);
+        }}>
           <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
         </TouchableOpacity>
       </View>
@@ -332,15 +331,15 @@ export default function HomeScreen() {
       </View>
 
       <View style={styles.linkGrid}>
-        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/diario' as any)}>
+        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/diario' as any); }}>
           <Text style={styles.linkEmoji}>📓</Text>
           <Text style={styles.linkText}>Diario</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/soldi' as any)}>
+        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/soldi' as any); }}>
           <Text style={styles.linkEmoji}>💶</Text>
           <Text style={styles.linkText}>Soldi</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.linkCard} onPress={() => router.push('/(tabs)/ricaduta' as any)}>
+        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/ricaduta' as any); }}>
           <Text style={styles.linkEmoji}>🤲</Text>
           <Text style={styles.linkText}>Ricaduta</Text>
         </TouchableOpacity>
@@ -382,13 +381,7 @@ export default function HomeScreen() {
               multiline
             />
             <View style={styles.checkinBtns}>
-              <TouchableOpacity
-                style={styles.checkinSkip}
-                onPress={async () => {
-                  await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString());
-                  setCheckinModal(false);
-                }}
-              >
+              <TouchableOpacity style={styles.checkinSkip} onPress={async () => { await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString()); setCheckinModal(false); }}>
                 <Text style={styles.checkinSkipText}>Non ora</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.checkinSave} onPress={salvaCheckin}>
@@ -405,10 +398,11 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
-  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
-  logo: { fontSize: 18, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic' },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 14, fontWeight: '700', color: '#1a0f00' },
+  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: 20, paddingTop: 60, paddingBottom: 16 },
+  logoSmall: { fontSize: 11, color: '#5a5f72', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
+  logo: { fontSize: 32, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic', lineHeight: 36 },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 16, fontWeight: '700', color: '#1a0f00' },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 20, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.15)', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
   onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#5d8fa8' },
   onlineText: { fontSize: 11, color: '#5d8fa8' },

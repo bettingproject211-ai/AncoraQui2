@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ancora Qui",
     "slug": "ancoraqui",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "ancoraqui",
@@ -30,17 +30,10 @@
     },
     "plugins": [
       "expo-router",
-      "expo-notifications",
-      "expo-font"
+      "expo-notifications"
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "extra": {
-      "router": {},
-      "eas": {
-        "projectId": "fbe618bf-a0c9-4059-8c2c-a9207af872d0"
-      }
     }
   }
 }
