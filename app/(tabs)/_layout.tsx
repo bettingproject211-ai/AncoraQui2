@@ -17,16 +17,16 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0c0f1a',
-          borderTopColor: '#181c2a',
+          backgroundColor: '#0d1117',
+          borderTopColor: '#1f2937',
           borderTopWidth: 1,
           height: 60 + insets.bottom + 8,
           paddingBottom: insets.bottom + 10,
           paddingTop: 8,
         },
-        tabBarActiveTintColor: '#c9965a',
-        tabBarInactiveTintColor: '#5a5f72',
-        tabBarLabelStyle: { fontSize: 9, fontFamily: 'Outfit' },
+        tabBarActiveTintColor: '#d4a853',
+        tabBarInactiveTintColor: '#6b7280',
+        tabBarLabelStyle: { fontSize: 9 },
       }}>
       <Tabs.Screen
         name="index"

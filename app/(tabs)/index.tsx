@@ -1,27 +1,16 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
-import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
-
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno', desc: 'Hai iniziato. È tutto.' },
   { giorni: 3, emoji: '🔥', titolo: 'Tre giorni', desc: 'Il più difficile è passato.' },
   { giorni: 7, emoji: '⭐', titolo: 'Una settimana', desc: 'Sette giorni di forza vera.' },
   { giorni: 14, emoji: '🌙', titolo: 'Due settimane', desc: 'Stai costruendo qualcosa di reale.' },
-  { giorni: 21, emoji: '💫', titolo: 'Tre settimane', desc: '21 giorni. Le abitudini cambiano. Ce l\'hai fatta.' },
+  { giorni: 21, emoji: '💫', titolo: 'Tre settimane', desc: '21 giorni. Le abitudini cambiano.' },
   { giorni: 30, emoji: '🏆', titolo: 'Un mese', desc: 'Un mese intero. Sei incredibile.' },
   { giorni: 60, emoji: '💎', titolo: 'Due mesi', desc: 'Hai cambiato la tua vita.' },
   { giorni: 100, emoji: '🚀', titolo: '100 giorni', desc: 'Cento giorni. Nessuno te li toglie.' },
@@ -37,7 +26,7 @@ const FRASI_GIORNI: Record<number, string> = {
   6: 'Sei giorni. Domani è una settimana.',
   7: 'Una settimana. Sai quanti non arrivano qui? Tu sì.',
   14: 'Due settimane. Le abitudini iniziano a cambiare.',
-  21: '21 giorni. La scienza dice che basta per cambiare un\'abitudine. Ci sei.',
+  21: '21 giorni. La scienza dice che basta. Ci sei.',
   30: 'Un mese. Non è poco. È tantissimo.',
   60: 'Due mesi. Hai cambiato qualcosa di profondo.',
   100: 'Cento giorni. Nessuno te li toglie. Mai.',
@@ -67,21 +56,14 @@ const getFraseGiorni = (giorni: number, ultimaRicaduta: number | null): string =
   return `${giorni} giorni. Sei ancora qui.`;
 };
 
-const NOTIFICHE_TIPO: Record<string, string[]> = {
-  slot: ['Come stai stasera? Sei ancora qui.', 'Una serata tranquilla vale più di qualsiasi altra cosa.', 'Sei ancora qui. Questo è tutto quello che conta.'],
-  sport: ['Come stai? Sei ancora qui.', 'Stasera conta solo una cosa — che tu stia bene.', 'Sei ancora qui. Questo è già una vittoria.'],
-  casino: ['Come stai questa sera? Sei ancora qui.', 'La notte è lunga. Sei ancora qui.', 'Sei ancora qui. Domani è un nuovo giorno.'],
-  gratta: ['Come stai oggi? Sei ancora qui.', 'Una giornata alla volta. Sei ancora qui.', 'Sei ancora qui. È tutto quello che importa.'],
-  altro: ['Come stai stasera? Sei ancora qui.', 'Sei ancora qui. Questo conta tutto.', 'Una serata, un giorno alla volta. Sei ancora qui.'],
-  default: ['Come stai stasera? Sei ancora qui — e questo conta tutto.'],
-};
+const getProssimoBadge = (giorni: number) => BADGES.find(b => b.giorni > giorni) || null;
 
-const NOTIFICHE_MOOD: Record<string, string> = {
-  'Stanco': 'Sei stanco — lo sappiamo. Non aprire quell\'altra app. Sei ancora qui.',
-  'Solo': 'Stasera ti senti solo. Entra nel Forum — ci sono persone che capiscono.',
-  'Nervoso': 'Giornata pesante? Respira. Apri l\'app prima di fare altro.',
-  'Ok': 'Stai bene stasera. Registra questo momento nel diario. 💪',
-  'default': 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
+const getProgressoPerc = (giorni: number): number => {
+  const prossimo = getProssimoBadge(giorni);
+  if (!prossimo) return 1;
+  const precedente = [...BADGES].reverse().find(b => b.giorni <= giorni);
+  const base = precedente ? precedente.giorni : 0;
+  return Math.min((giorni - base) / (prossimo.giorni - base), 1);
 };
 
 const DOMANDE = [
@@ -96,6 +78,7 @@ const DOMANDE = [
 
 export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
+  const [displayGiorni, setDisplayGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
   const [spesaGiornaliera, setSpesaGiornaliera] = useState(30);
   const [perche, setPerche] = useState('');
@@ -109,22 +92,58 @@ export default function HomeScreen() {
   const [settimana, setSettimana] = useState<boolean[]>(Array(7).fill(false));
   const [oggiResistito, setOggiResistito] = useState(false);
   const [ultimaRicaduta, setUltimaRicaduta] = useState<number | null>(null);
-  const animaFade = useRef(new Animated.Value(0)).current;
+  const [progresso, setProgresso] = useState(0);
+  const [loaded, setLoaded] = useState(false);
+
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
+  const animaSosPulse = useRef(new Animated.Value(1)).current;
+  const animaProgresso = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(useCallback(() => {
+    setLoaded(false);
+    animaProgresso.setValue(0);
     caricaDati();
     caricaOnline();
     caricaMood();
   }, []));
 
-  useEffect(() => { richiediPermessi(); }, []);
+  useEffect(() => { avviaPulseSos(); }, []);
 
   useEffect(() => {
-    Animated.timing(animaFade, { toValue: 1, duration: 800, useNativeDriver: true }).start();
-    if (giorni >= 1) controllaCheckin();
-  }, [giorni]);
+    if (giorni >= 0 && loaded) {
+      let current = 0;
+      const target = giorni;
+      const steps = 40;
+      const stepTime = 1200 / steps;
+      const stepVal = Math.max(target / steps, 0.1);
+      const timer = setInterval(() => {
+        current = Math.min(current + stepVal, target);
+        setDisplayGiorni(Math.round(current));
+        if (current >= target) clearInterval(timer);
+      }, stepTime);
+
+      const perc = getProgressoPerc(giorni);
+      setProgresso(perc);
+
+      setTimeout(() => {
+        Animated.timing(animaProgresso, { toValue: perc, duration: 1600, useNativeDriver: false }).start();
+      }, 300);
+
+      if (giorni >= 1) controllaCheckin();
+      return () => clearInterval(timer);
+    }
+  }, [giorni, loaded]);
+
+  const avviaPulseSos = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animaSosPulse, { toValue: 1.03, duration: 1200, useNativeDriver: true }),
+        Animated.timing(animaSosPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.delay(2000),
+      ])
+    ).start();
+  };
 
   const caricaDati = async () => {
     try {
@@ -145,16 +164,12 @@ export default function HomeScreen() {
       setSpesaGiornaliera(spesaNum);
       setOggiResistito(ultimoCheckin === oggi.toDateString());
       setRisparmi(diff * spesaNum);
-
-      // Carica ultima ricaduta — solo se siamo al giorno 0
       if (diff === 0 && ricadutaStr) {
         setUltimaRicaduta(parseInt(ricadutaStr));
       } else {
         setUltimaRicaduta(null);
-        // Se non siamo più al giorno 0 puliamo il flag
         if (diff > 0) await AsyncStorageLib.removeItem('ultimaRicadutaGiorni');
       }
-
       controllaBadge(diff);
       const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
       const nuovaSettimana = Array(7).fill(false).map((_, i) => {
@@ -162,7 +177,8 @@ export default function HomeScreen() {
         return giorniDaOggi >= 0 && giorniDaOggi < diff;
       });
       setSettimana(nuovaSettimana.reverse());
-    } catch (e) {}
+      setLoaded(true);
+    } catch (e) { setLoaded(true); }
   };
 
   const controllaCheckin = async () => {
@@ -172,7 +188,7 @@ export default function HomeScreen() {
       if (ultimoCheckin !== oggi) {
         const indice = new Date().getDay() % DOMANDE.length;
         setDomandaOggi(DOMANDE[indice]);
-        setTimeout(() => setCheckinModal(true), 3000);
+        setTimeout(() => setCheckinModal(true), 4000);
       }
     } catch (e) {}
   };
@@ -213,47 +229,10 @@ export default function HomeScreen() {
     } catch (e) {}
   };
 
-  const richiediPermessi = async () => {
-    try {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') { programmaNotificaSera(); programmaNotificaMattina(); }
-    } catch (e) {}
-  };
-
-  const programmaNotificaMattina = async () => {
-    try {
-      await Notifications.scheduleNotificationAsync({
-        content: { title: 'Ancora Qui 🌅', body: 'Buongiorno. Oggi è un nuovo giorno. Sei ancora qui.' },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 0 },
-      });
-    } catch (e) {}
-  };
-
-  const programmaNotificaSera = async (mood?: string) => {
-    try {
-      const moodSalvato = mood || await AsyncStorageLib.getItem('moodOggi');
-      const tipo = await AsyncStorageLib.getItem('tipoGioco') || 'default';
-      let body = NOTIFICHE_MOOD['default'];
-      if (moodSalvato && NOTIFICHE_MOOD[moodSalvato]) {
-        body = NOTIFICHE_MOOD[moodSalvato];
-      } else {
-        const notificheTipo = NOTIFICHE_TIPO[tipo] || NOTIFICHE_TIPO['default'];
-        body = notificheTipo[Math.floor(Math.random() * notificheTipo.length)];
-      }
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      await Notifications.scheduleNotificationAsync({
-        content: { title: 'Ancora Qui 🌙', body },
-        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 0 },
-      });
-      programmaNotificaMattina();
-    } catch (e) {}
-  };
-
   const selezionaMood = async (mood: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMoodSelezionato(mood);
     await AsyncStorageLib.setItem('moodOggi', mood);
-    programmaNotificaSera(mood);
   };
 
   const controllaBadge = async (diff: number) => {
@@ -280,12 +259,12 @@ export default function HomeScreen() {
   const premiSos = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Animated.sequence([
-      Animated.timing(animaSos, { toValue: 0.95, duration: 100, useNativeDriver: true }),
-      Animated.timing(animaSos, { toValue: 1, duration: 100, useNativeDriver: true }),
+      Animated.timing(animaSos, { toValue: 0.93, duration: 80, useNativeDriver: true }),
+      Animated.timing(animaSos, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start(() => router.push('/(tabs)/sos' as any));
   };
 
-  const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
+  const prossimoBadge = getProssimoBadge(giorni);
   const giorniSettimana = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
   const moods = [
     { emoji: '😴', label: 'Stanco' },
@@ -294,120 +273,106 @@ export default function HomeScreen() {
     { emoji: '💪', label: 'Ok' },
   ];
 
-  const renderSoldi = () => {
-    if (giorni < 3) {
-      return (
-        <View style={styles.card}>
-          <Text style={styles.cardLbl}>COSA PUOI RISPARMIARE</Text>
-          <View style={styles.proiezioneRow}>
-            <View style={styles.proiezioneItem}>
-              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 7).toFixed(0)}</Text>
-              <Text style={styles.proiezioneLbl}>in 7 giorni</Text>
-            </View>
-            <View style={styles.proiezioneDivider} />
-            <View style={styles.proiezioneItem}>
-              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 30).toFixed(0)}</Text>
-              <Text style={styles.proiezioneLbl}>in 30 giorni</Text>
-            </View>
-            <View style={styles.proiezioneDivider} />
-            <View style={styles.proiezioneItem}>
-              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 100).toFixed(0)}</Text>
-              <Text style={styles.proiezioneLbl}>in 100 giorni</Text>
-            </View>
-          </View>
-          <Text style={styles.proiezioneSub}>Ogni giorno che passa, questi numeri diventano reali. 🌱</Text>
-        </View>
-      );
-    }
-    return (
-      <View style={styles.card}>
-        <View style={styles.moneyRow}>
-          <Text style={styles.cardLbl}>HAI GIÀ RISPARMIATO</Text>
-          <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
-        </View>
-        {risparmi >= 10 && <Text style={styles.moneyItem}>🍕  = {Math.floor(risparmi / 10)} pizze</Text>}
-        {risparmi >= 235 && <Text style={styles.moneyItem}>🛒  = {Math.floor(risparmi / 235)} mesi di spesa</Text>}
-        {risparmi >= 500 && <Text style={styles.moneyItem}>👶  = primo corredino raggiunto ✓</Text>}
-      </View>
-    );
-  };
+  if (!loaded) {
+    return <View style={{ flex: 1, backgroundColor: '#07090f' }} />;
+  }
 
   return (
-    <Animated.ScrollView style={[styles.container, { opacity: animaFade }]}>
+    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-      <View style={styles.topbar}>
+      <View style={styles.header}>
         <View>
-          <Text style={styles.logoSmall}>benvenuto</Text>
+          <Text style={styles.logoSub}>benvenuto</Text>
           <Text style={styles.logo}>Ancora Qui</Text>
         </View>
-        <TouchableOpacity style={styles.avatar} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profilo' as any); }}>
-          <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
-        </TouchableOpacity>
-      </View>
-
-      <View style={styles.onlinePill}>
-        <View style={styles.onlineDot} />
-        <Text style={styles.onlineText}>{onlineCount} voci oggi</Text>
-      </View>
-
-      <View style={styles.perche}>
-        <Text style={styles.percheIcon}>⭐</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.percheLbl}>IL TUO PERCHÉ</Text>
-          <Text style={styles.percheVal}>"{perche}"</Text>
+        <View style={styles.headerRight}>
+          {onlineCount > 0 && (
+            <View style={styles.onlinePill}>
+              <View style={styles.onlineDot} />
+              <Text style={styles.onlineText}>{onlineCount} oggi</Text>
+            </View>
+          )}
+          <TouchableOpacity style={styles.avatar} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profilo' as any); }}>
+            <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      <View style={styles.streak}>
-        <View style={styles.streakTop}>
-          <Text style={styles.streakLbl}>GIORNI LIBERO</Text>
-          <Text style={styles.streakNext}>
-            {BADGES.find(b => b.giorni > giorni) ? `${BADGES.find(b => b.giorni > giorni)?.emoji} tra ${BADGES.find(b => b.giorni > giorni)!.giorni - giorni}gg` : '🏆 tutti i badge!'}
-          </Text>
+      <View style={styles.heroSection}>
+        <View style={styles.ringOuter}>
+          <View style={styles.ringInner}>
+            <Text style={styles.ringNum}>{displayGiorni}</Text>
+            <Text style={styles.ringLbl}>giorni</Text>
+          </View>
+          <View style={styles.ringDecorativo}>
+            {Array(12).fill(0).map((_, i) => {
+              const angolo = (i / 12) * 360;
+              const attivo = i < Math.round(progresso * 12);
+              return (
+                <View
+                  key={i}
+                  style={[
+                    styles.ringSegmento,
+                    {
+                      transform: [{ rotate: `${angolo}deg` }, { translateY: -72 }],
+                      backgroundColor: attivo ? '#10b981' : '#1f2937',
+                    }
+                  ]}
+                />
+              );
+            })}
+          </View>
         </View>
-        <Text style={styles.streakN}>{giorni}</Text>
-        <Text style={styles.fraseMotivazioneText}>{getFraseGiorni(giorni, ultimaRicaduta)}</Text>
+
+        <Text style={styles.fraseMotivazione}>{getFraseGiorni(giorni, ultimaRicaduta)}</Text>
+
+        {prossimoBadge && (
+          <View style={styles.progressoWrapper}>
+            <View style={styles.progressoBar}>
+              <Animated.View style={[styles.progressoFill, {
+                width: animaProgresso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
+              }]} />
+            </View>
+            <Text style={styles.progressoLabel}>
+              {prossimoBadge.emoji} {prossimoBadge.giorni - giorni} giorni al badge "{prossimoBadge.titolo}"
+            </Text>
+          </View>
+        )}
+
         <View style={styles.weekRow}>
           {giorniSettimana.map((g, i) => (
             <View key={i} style={styles.weekDay}>
-              <View style={[styles.weekDot, settimana[i] && styles.weekDotOn]} />
+              <View style={[
+                styles.weekDot,
+                settimana[i] && styles.weekDotOn,
+                i === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1) && !settimana[i] && styles.weekDotOggi,
+              ]} />
               <Text style={styles.weekLbl}>{g}</Text>
             </View>
           ))}
         </View>
       </View>
 
-      {giorni >= 2 && (
-        <View style={[styles.microProgressoCard, oggiResistito && styles.microProgressoCardOn]}>
-          <Text style={[styles.microProgressoEmoji, { color: oggiResistito ? '#6aaa82' : '#5a5f72' }]}>
-            {oggiResistito ? '✓' : '○'}
-          </Text>
+      <View style={styles.card}>
+        <View style={styles.percheRow}>
+          <Text style={styles.percheIcon}>⭐</Text>
           <View style={{ flex: 1 }}>
-            <Text style={styles.microProgressoTitolo}>
-              {oggiResistito ? 'Oggi hai resistito' : 'Oggi non ancora registrato'}
-            </Text>
-            <Text style={styles.microProgressoSub}>
-              {oggiResistito ? 'Ottimo lavoro. Continua così.' : 'Apri il diario e registra come stai.'}
-            </Text>
+            <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
+            <Text style={styles.percheVal}>"{perche}"</Text>
           </View>
         </View>
-      )}
-
-      {badgeRaggunti.length > 0 && (
-        <View style={styles.badgesRow}>
-          <Text style={styles.badgesLbl}>I TUOI BADGE</Text>
-          <View style={styles.badges}>
-            {badgeRaggunti.map(b => (
-              <View key={b.giorni} style={styles.badge}>
-                <Text style={styles.badgeEmoji}>{b.emoji}</Text>
-                <Text style={styles.badgeTitolo}>{b.titolo}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {renderSoldi()}
+        {giorni >= 2 && (
+          <>
+            <View style={styles.separatore} />
+            <View style={styles.oggiRow}>
+              <View style={[styles.oggiDot, oggiResistito && styles.oggiDotOn]} />
+              <Text style={styles.oggiText}>
+                {oggiResistito ? 'Oggi hai resistito ✓' : 'Oggi non ancora registrato'}
+              </Text>
+            </View>
+          </>
+        )}
+      </View>
 
       <View style={styles.card}>
         <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
@@ -418,13 +383,49 @@ export default function HomeScreen() {
               style={[styles.pill, moodSelezionato === mood.label && styles.pillOn]}
               onPress={() => selezionaMood(mood.label)}
             >
-              <Text style={moodSelezionato === mood.label ? styles.pillOnText : styles.pillText}>
-                {mood.emoji} {mood.label}
+              <Text style={styles.pillEmoji}>{mood.emoji}</Text>
+              <Text style={[styles.pillText, moodSelezionato === mood.label && styles.pillTextOn]}>
+                {mood.label}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
-        {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Notifica di stasera aggiornata</Text> : null}
+        {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Notifica di stasera personalizzata</Text> : null}
+      </View>
+
+      <View style={styles.card}>
+        {giorni < 3 ? (
+          <>
+            <Text style={styles.cardLbl}>COSA PUOI RISPARMIARE</Text>
+            <View style={styles.proiezioneRow}>
+              <View style={styles.proiezioneItem}>
+                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 7).toFixed(0)}</Text>
+                <Text style={styles.proiezioneLbl}>7 giorni</Text>
+              </View>
+              <View style={styles.proiezioneDivider} />
+              <View style={styles.proiezioneItem}>
+                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 30).toFixed(0)}</Text>
+                <Text style={styles.proiezioneLbl}>30 giorni</Text>
+              </View>
+              <View style={styles.proiezioneDivider} />
+              <View style={styles.proiezioneItem}>
+                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 100).toFixed(0)}</Text>
+                <Text style={styles.proiezioneLbl}>100 giorni</Text>
+              </View>
+            </View>
+            <Text style={styles.proiezioneSub}>Ogni giorno che passa, questi numeri diventano reali. 🌱</Text>
+          </>
+        ) : (
+          <>
+            <View style={styles.moneyRow}>
+              <Text style={styles.cardLbl}>HAI GIÀ RISPARMIATO</Text>
+              <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
+            </View>
+            {risparmi >= 10 && <Text style={styles.moneyItem}>🍕  {Math.floor(risparmi / 10)} pizze</Text>}
+            {risparmi >= 235 && <Text style={styles.moneyItem}>🛒  {Math.floor(risparmi / 235)} mesi di spesa</Text>}
+            {risparmi >= 500 && <Text style={styles.moneyItem}>👶  primo corredino raggiunto ✓</Text>}
+          </>
+        )}
       </View>
 
       <View style={styles.linkGrid}>
@@ -442,10 +443,13 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <Animated.View style={{ transform: [{ scale: animaSos }] }}>
-        <TouchableOpacity style={styles.sos} onPress={premiSos}>
-          <Text style={styles.sosText}>🚨  Ho bisogno di aiuto ora</Text>
-        </TouchableOpacity>
+      <Animated.View style={[{ marginHorizontal: 20, marginBottom: 50 }, { transform: [{ scale: animaSos }] }]}>
+        <Animated.View style={{ transform: [{ scale: animaSosPulse }] }}>
+          <TouchableOpacity style={styles.sos} onPress={premiSos}>
+            <View style={styles.sosDot} />
+            <Text style={styles.sosText}>Ho bisogno di aiuto ora</Text>
+          </TouchableOpacity>
+        </Animated.View>
       </Animated.View>
 
       <Modal visible={!!badgeModal} transparent animationType="fade">
@@ -472,7 +476,7 @@ export default function HomeScreen() {
             <TextInput
               style={styles.checkinInput}
               placeholder="Scrivi qualcosa... oppure chiudi"
-              placeholderTextColor="#5a5f72"
+              placeholderTextColor="#6b7280"
               value={checkinRisposta}
               onChangeText={setCheckinRisposta}
               multiline
@@ -489,85 +493,88 @@ export default function HomeScreen() {
         </View>
       </Modal>
 
-    </Animated.ScrollView>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#06080f' },
-  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: 20, paddingTop: 60, paddingBottom: 16 },
-  logoSmall: { fontSize: 10, color: '#5a5f72', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 },
-  logo: { fontSize: 28, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic', lineHeight: 32 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 16, fontWeight: '700', color: '#1a0f00' },
-  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 20, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.15)', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
-  onlineDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#5d8fa8' },
-  onlineText: { fontSize: 11, color: '#5d8fa8' },
-  perche: { flexDirection: 'row', alignItems: 'center', gap: 10, margin: 20, marginBottom: 0, backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 13 },
-  percheIcon: { fontSize: 18 },
-  percheLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 1.5, marginBottom: 3 },
-  percheVal: { fontFamily: 'Lora_400Regular_Italic', fontSize: 13, color: '#ddd8cf' },
-  streak: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 20, padding: 18 },
-  streakTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 4 },
-  streakLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5 },
-  streakNext: { fontSize: 9, color: '#c9965a' },
-  streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64, fontFamily: 'Lora_700Bold' },
-  fraseMotivazioneText: { fontSize: 13, color: '#5a5f72', fontStyle: 'italic', marginBottom: 14, lineHeight: 20 },
-  weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  weekDay: { alignItems: 'center', gap: 4, flex: 1 },
-  weekDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: '#1e2336' },
-  weekDotOn: { backgroundColor: '#6aaa82', borderColor: '#6aaa82' },
-  weekLbl: { fontSize: 9, color: '#5a5f72' },
-  microProgressoCard: { marginHorizontal: 20, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 14 },
-  microProgressoCardOn: { borderColor: 'rgba(106,170,130,0.3)', backgroundColor: 'rgba(106,170,130,0.05)' },
-  microProgressoEmoji: { fontSize: 22, fontWeight: '700', width: 28, textAlign: 'center' },
-  microProgressoTitolo: { fontSize: 13, fontWeight: '600', color: '#ddd8cf', marginBottom: 2 },
-  microProgressoSub: { fontSize: 11, color: '#5a5f72' },
-  badgesRow: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
-  badgesLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 10 },
-  badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  badge: { alignItems: 'center', backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 12, padding: 8, minWidth: 60 },
-  badgeEmoji: { fontSize: 22, marginBottom: 4 },
-  badgeTitolo: { fontSize: 9, color: '#c9965a', textAlign: 'center' },
-  card: { margin: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
-  cardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 8 },
-  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  moneyVal: { fontSize: 22, color: '#c9965a', fontWeight: '700', fontFamily: 'Lora_700Bold' },
-  moneyItem: { fontSize: 11, color: '#a8a29a', marginBottom: 4 },
+  container: { flex: 1, backgroundColor: '#07090f' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 60, paddingBottom: 8 },
+  logoSub: { fontSize: 10, color: '#6b7280', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 2 },
+  logo: { fontSize: 26, color: '#d4a853', fontFamily: 'Lora_400Regular_Italic' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 },
+  onlineDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#3b82f6' },
+  onlineText: { fontSize: 10, color: '#3b82f6', fontWeight: '600' },
+  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#d4a853', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 15, fontWeight: '700', color: '#07090f' },
+  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 24 },
+  ringOuter: { width: 160, height: 160, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
+  ringInner: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
+  ringNum: { fontSize: 58, fontWeight: '700', color: '#f9fafb', fontFamily: 'Lora_700Bold', lineHeight: 64 },
+  ringLbl: { fontSize: 12, color: '#6b7280', letterSpacing: 1, textAlign: 'center' },
+  ringDecorativo: { position: 'absolute', width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
+  ringSegmento: { position: 'absolute', width: 6, height: 16, borderRadius: 3 },
+  fraseMotivazione: { fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 24, fontStyle: 'italic', marginBottom: 20, paddingHorizontal: 8 },
+  progressoWrapper: { width: '100%', marginBottom: 20 },
+  progressoBar: { height: 3, backgroundColor: '#1f2937', borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
+  progressoFill: { height: '100%', backgroundColor: '#10b981', borderRadius: 2 },
+  progressoLabel: { fontSize: 11, color: '#6b7280', textAlign: 'center' },
+  weekRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
+  weekDay: { alignItems: 'center', gap: 5, flex: 1 },
+  weekDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937' },
+  weekDotOn: { backgroundColor: '#10b981', borderColor: '#10b981' },
+  weekDotOggi: { borderColor: '#d4a853', borderWidth: 2 },
+  weekLbl: { fontSize: 9, color: '#6b7280' },
+  card: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 20, padding: 18 },
+  cardLbl: { fontSize: 9, color: '#6b7280', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' },
+  percheRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  percheIcon: { fontSize: 16, marginTop: 2 },
+  percheVal: { fontFamily: 'Lora_400Regular_Italic', fontSize: 14, color: '#f9fafb', lineHeight: 22, flex: 1 },
+  separatore: { height: 1, backgroundColor: '#1f2937', marginVertical: 14 },
+  oggiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  oggiDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#374151' },
+  oggiDotOn: { backgroundColor: '#10b981' },
+  oggiText: { fontSize: 13, color: '#9ca3af' },
+  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: '#1f2937', backgroundColor: '#111827' },
+  pillOn: { borderColor: 'rgba(212,168,83,0.4)', backgroundColor: 'rgba(212,168,83,0.08)' },
+  pillEmoji: { fontSize: 14 },
+  pillText: { fontSize: 12, color: '#6b7280' },
+  pillTextOn: { color: '#d4a853' },
+  moodConfirm: { fontSize: 10, color: '#10b981', marginTop: 10 },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  moneyVal: { fontSize: 24, color: '#d4a853', fontWeight: '700', fontFamily: 'Lora_700Bold' },
+  moneyItem: { fontSize: 12, color: '#9ca3af', marginBottom: 6 },
   proiezioneRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   proiezioneItem: { flex: 1, alignItems: 'center' },
-  proiezioneNum: { fontSize: 18, fontWeight: '700', color: '#6aaa82', fontFamily: 'Lora_700Bold', marginBottom: 4 },
-  proiezioneLbl: { fontSize: 10, color: '#5a5f72' },
-  proiezioneDivider: { width: 1, backgroundColor: '#181c2a', marginVertical: 4 },
-  proiezioneSub: { fontSize: 11, color: '#5a5f72', textAlign: 'center', fontStyle: 'italic' },
-  pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: '#1e2336' },
-  pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
-  pillText: { fontSize: 11, color: '#5a5f72' },
-  pillOnText: { fontSize: 11, color: '#c9965a' },
-  moodConfirm: { fontSize: 10, color: '#6aaa82', marginTop: 8 },
-  linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginTop: 14, gap: 10 },
-  linkCard: { flex: 1, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 14, alignItems: 'center', gap: 6 },
-  linkEmoji: { fontSize: 22 },
-  linkText: { fontSize: 11, color: '#5a5f72' },
-  sos: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#6e2020', borderRadius: 16, padding: 16, alignItems: 'center', marginBottom: 40 },
-  sosText: { color: 'white', fontSize: 14, fontWeight: '600' },
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 24, padding: 32, alignItems: 'center', width: 300 },
-  modalEmoji: { fontSize: 56, marginBottom: 16 },
-  modalTitolo: { fontSize: 22, fontWeight: '700', color: '#ddd8cf', marginBottom: 8, textAlign: 'center', fontFamily: 'Lora_700Bold' },
-  modalDesc: { fontSize: 14, color: '#5a5f72', textAlign: 'center', lineHeight: 22, marginBottom: 20 },
-  modalBtnCondividi: { backgroundColor: 'rgba(201,150,90,0.1)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.3)', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
-  modalBtnCondividiText: { color: '#c9965a', fontSize: 14, fontWeight: '600' },
-  modalBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 12, paddingHorizontal: 32 },
-  modalBtnText: { color: '#1a0f00', fontSize: 14, fontWeight: '700' },
-  checkinCard: { backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 24, padding: 24, width: '100%' },
-  checkinEmoji: { fontSize: 36, textAlign: 'center', marginBottom: 12 },
-  checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', lineHeight: 26, marginBottom: 16, fontFamily: 'Lora_700Bold' },
-  checkinInput: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 14, color: '#ddd8cf', fontSize: 14, minHeight: 80, marginBottom: 16 },
+  proiezioneNum: { fontSize: 20, fontWeight: '700', color: '#10b981', fontFamily: 'Lora_700Bold', marginBottom: 4 },
+  proiezioneLbl: { fontSize: 10, color: '#6b7280' },
+  proiezioneDivider: { width: 1, backgroundColor: '#1f2937' },
+  proiezioneSub: { fontSize: 11, color: '#6b7280', textAlign: 'center', fontStyle: 'italic' },
+  linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, gap: 10 },
+  linkCard: { flex: 1, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 16, padding: 14, alignItems: 'center', gap: 8 },
+  linkEmoji: { fontSize: 24 },
+  linkText: { fontSize: 11, color: '#6b7280' },
+  sos: { backgroundColor: '#130808', borderWidth: 1.5, borderColor: 'rgba(239,68,68,0.35)', borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  sosDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
+  sosText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 28, padding: 32, alignItems: 'center', width: '100%' },
+  modalEmoji: { fontSize: 60, marginBottom: 16 },
+  modalTitolo: { fontSize: 24, fontWeight: '700', color: '#f9fafb', marginBottom: 8, textAlign: 'center', fontFamily: 'Lora_700Bold' },
+  modalDesc: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
+  modalBtnCondividi: { backgroundColor: 'rgba(212,168,83,0.08)', borderWidth: 1, borderColor: 'rgba(212,168,83,0.25)', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
+  modalBtnCondividiText: { color: '#d4a853', fontSize: 14, fontWeight: '600' },
+  modalBtn: { backgroundColor: '#d4a853', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32 },
+  modalBtnText: { color: '#07090f', fontSize: 14, fontWeight: '700' },
+  checkinCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 28, padding: 24, width: '100%' },
+  checkinEmoji: { fontSize: 40, textAlign: 'center', marginBottom: 12 },
+  checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#f9fafb', textAlign: 'center', lineHeight: 26, marginBottom: 16, fontFamily: 'Lora_700Bold' },
+  checkinInput: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', borderRadius: 14, padding: 14, color: '#f9fafb', fontSize: 14, minHeight: 80, marginBottom: 16 },
   checkinBtns: { flexDirection: 'row', gap: 10 },
-  checkinSkip: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#111525', alignItems: 'center' },
-  checkinSkipText: { fontSize: 14, color: '#5a5f72' },
-  checkinSave: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#c9965a', alignItems: 'center' },
-  checkinSaveText: { fontSize: 14, color: '#1a0f00', fontWeight: '700' },
+  checkinSkip: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center' },
+  checkinSkipText: { fontSize: 14, color: '#6b7280' },
+  checkinSave: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#d4a853', alignItems: 'center' },
+  checkinSaveText: { fontSize: 14, color: '#07090f', fontWeight: '700' },
 });
