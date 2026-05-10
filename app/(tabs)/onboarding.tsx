@@ -21,9 +21,10 @@ export default function OnboardingScreen() {
   const [contattoNome, setContattoNome] = useState('');
   const [contattoNumero, setContattoNumero] = useState('');
   const [accettato, setAccettato] = useState(false);
+  const [maggiorenne, setMaggiorenne] = useState(false);
 
   const inizia = async () => {
-    if (!perche || !spesa || !accettato) return;
+    if (!perche || !spesa || !accettato || !maggiorenne) return;
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     await AsyncStorageLib.setItem('dataInizio', new Date().toISOString());
     await AsyncStorageLib.setItem('spesaGiornaliera', spesa);
@@ -128,7 +129,7 @@ export default function OnboardingScreen() {
         <View style={styles.card}>
           <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
           <Text style={styles.cardDesc}>Cosa ti ha fatto aprire questa app oggi?</Text>
-          <TextInput style={styles.input} placeholder="Es. per mia figlia, per me stesso..." placeholderTextColor="#5a5f72" value={perche} onChangeText={setPerche} multiline />
+          <TextInput style={[styles.input, { minHeight: 60 }]} placeholder="Es. per mia figlia, per me stesso..." placeholderTextColor="#5a5f72" value={perche} onChangeText={setPerche} multiline />
         </View>
 
         <View style={styles.card}>
@@ -144,12 +145,17 @@ export default function OnboardingScreen() {
           <TextInput style={styles.input} placeholder="Numero di telefono" placeholderTextColor="#5a5f72" value={contattoNumero} onChangeText={setContattoNumero} keyboardType="phone-pad" />
         </View>
 
+        {/* DISCLAIMER E CONSENSI */}
         <View style={styles.disclaimerCard}>
-          <Text style={styles.disclaimerTitolo}>⚠️ Informazione importante</Text>
+          <Text style={styles.disclaimerTitolo}>⚠️ Prima di iniziare</Text>
           <Text style={styles.disclaimerTesto}>
-            Ancora Qui è uno strumento di supporto e non sostituisce il parere di un professionista della salute mentale.{'\n\n'}
-            Se sei in crisi chiama il SerD al numero gratuito 800 274 274.
+            Ancora Qui è uno strumento di supporto emotivo. Non è un servizio medico o psicologico e non sostituisce in alcun modo un professionista della salute mentale.{'\n\n'}
+            In caso di crisi chiama:{'\n'}
+            🆘 Emergenza: <Text style={styles.disclaimerBold}>112</Text>{'\n'}
+            📞 SerD: <Text style={styles.disclaimerBold}>800 274 274</Text>{'\n'}
+            📞 Telefono Amico: <Text style={styles.disclaimerBold}>02 2327 2327</Text>
           </Text>
+
           <View style={styles.legalLinks}>
             <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
               <Text style={styles.legalLink}>Privacy Policy</Text>
@@ -159,18 +165,38 @@ export default function OnboardingScreen() {
               <Text style={styles.legalLink}>Termini di Utilizzo</Text>
             </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.checkRow} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAccettato(!accettato); }}>
+
+          {/* CHECKBOX MAGGIORE ETÀ */}
+          <TouchableOpacity
+            style={[styles.checkRow, { marginBottom: 12 }]}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setMaggiorenne(!maggiorenne); }}
+          >
+            <View style={[styles.checkbox, maggiorenne && styles.checkboxOn]}>
+              {maggiorenne && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkLabel}>Dichiaro di avere almeno <Text style={{ color: '#c9965a', fontWeight: '700' }}>18 anni</Text></Text>
+          </TouchableOpacity>
+
+          {/* CHECKBOX TERMINI */}
+          <TouchableOpacity
+            style={styles.checkRow}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAccettato(!accettato); }}
+          >
             <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
               {accettato && <Text style={styles.checkmark}>✓</Text>}
             </View>
-            <Text style={styles.checkLabel}>Ho letto e accetto Privacy Policy e Termini</Text>
+            <Text style={styles.checkLabel}>Ho letto e accetto Privacy Policy e Termini di Utilizzo</Text>
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={[styles.btn, (!perche || !spesa || !accettato) && styles.btnDisabled]} onPress={inizia}>
-          <Text style={styles.btnText}>Inizia →</Text>
+        <TouchableOpacity
+          style={[styles.btn, (!perche || !spesa || !accettato || !maggiorenne) && styles.btnDisabled]}
+          onPress={inizia}
+        >
+          <Text style={styles.btnText}>Inizia il mio percorso →</Text>
         </TouchableOpacity>
 
+        <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -207,16 +233,17 @@ const styles = StyleSheet.create({
   input: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 14, color: '#ddd8cf', fontSize: 14, minHeight: 48 },
   disclaimerCard: { marginHorizontal: 20, marginBottom: 14, backgroundColor: 'rgba(184,92,92,0.05)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.2)', borderRadius: 20, padding: 18 },
   disclaimerTitolo: { fontSize: 14, fontWeight: '700', color: '#ddd8cf', marginBottom: 10 },
-  disclaimerTesto: { fontSize: 12, color: '#5a5f72', lineHeight: 20, marginBottom: 14 },
-  legalLinks: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
+  disclaimerTesto: { fontSize: 12, color: '#5a5f72', lineHeight: 22, marginBottom: 16 },
+  disclaimerBold: { color: '#ddd8cf', fontWeight: '700' },
+  legalLinks: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
   legalLink: { fontSize: 12, color: '#c9965a', textDecorationLine: 'underline' },
   legalSep: { fontSize: 12, color: '#5a5f72' },
-  checkRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, borderColor: '#5a5f72', alignItems: 'center', justifyContent: 'center' },
+  checkRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  checkbox: { width: 24, height: 24, borderRadius: 6, borderWidth: 1, borderColor: '#5a5f72', alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   checkboxOn: { backgroundColor: '#c9965a', borderColor: '#c9965a' },
   checkmark: { fontSize: 14, color: '#1a0f00', fontWeight: '700' },
-  checkLabel: { fontSize: 13, color: '#ddd8cf', flex: 1 },
-  btn: { marginHorizontal: 20, marginBottom: 60, backgroundColor: '#c9965a', borderRadius: 16, padding: 18, alignItems: 'center' },
+  checkLabel: { fontSize: 13, color: '#ddd8cf', flex: 1, lineHeight: 20 },
+  btn: { marginHorizontal: 20, marginBottom: 20, backgroundColor: '#c9965a', borderRadius: 16, padding: 18, alignItems: 'center' },
   btnDisabled: { opacity: 0.4 },
   btnText: { color: '#1a0f00', fontSize: 16, fontWeight: '700' },
 });

@@ -1,7 +1,7 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno' },
@@ -59,7 +59,6 @@ export default function ProfiloScreen() {
         setImpulsiTotali(impulsi.length);
         setResistitiTotali(impulsi.filter((i: any) => i.resistito).length);
       }
-      // Fatto del giorno basato sul giorno dell'anno
       const giornoAnno = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
       setSapeviFatto(giornoAnno % LO_SAPEVI.length);
     } catch (e) {}
@@ -69,6 +68,24 @@ export default function ProfiloScreen() {
     await AsyncStorageLib.setItem('nomeUtente', nomeTemp);
     setNome(nomeTemp);
     setEditNome(false);
+  };
+
+  const resetApp = () => {
+    Alert.alert(
+      'Reset app',
+      'Vuoi resettare tutti i dati? Utile per testare l\'onboarding.',
+      [
+        { text: 'Annulla', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            await AsyncStorageLib.clear();
+            router.replace('/(tabs)/onboarding' as any);
+          }
+        }
+      ]
+    );
   };
 
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
@@ -151,13 +168,37 @@ export default function ProfiloScreen() {
         </View>
       )}
 
-      <View style={styles.legalCard}>
-        <Text style={styles.cardLbl}>SUPPORTO E INFORMAZIONI</Text>
-        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:800274274')}>
-          <Text style={styles.legalText}>SerD — 800 274 274</Text>
-          <Text style={styles.legalArrow}>📞</Text>
+      {/* SUPPORTO E EMERGENZE */}
+      <View style={styles.emergenzaCard}>
+        <Text style={styles.cardLbl}>NUMERI UTILI</Text>
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:112')}>
+          <View>
+            <Text style={styles.emergenzaTitolo}>🆘 Emergenza</Text>
+            <Text style={styles.emergenzaSub}>Numero unico di emergenza</Text>
+          </View>
+          <Text style={styles.emergenzaNum}>112</Text>
         </TouchableOpacity>
         <View style={styles.legalDivider} />
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:800274274')}>
+          <View>
+            <Text style={styles.emergenzaTitolo}>📞 SerD</Text>
+            <Text style={styles.emergenzaSub}>Servizio Dipendenze — gratuito</Text>
+          </View>
+          <Text style={styles.emergenzaNum}>800 274 274</Text>
+        </TouchableOpacity>
+        <View style={styles.legalDivider} />
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:0223272327')}>
+          <View>
+            <Text style={styles.emergenzaTitolo}>💙 Telefono Amico</Text>
+            <Text style={styles.emergenzaSub}>Supporto emotivo</Text>
+          </View>
+          <Text style={styles.emergenzaNum}>02 2327 2327</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* LEGALE */}
+      <View style={styles.legalCard}>
+        <Text style={styles.cardLbl}>INFORMAZIONI LEGALI</Text>
         <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
           <Text style={styles.legalText}>Privacy Policy</Text>
           <Text style={styles.legalArrow}>→</Text>
@@ -167,9 +208,29 @@ export default function ProfiloScreen() {
           <Text style={styles.legalText}>Termini di Utilizzo</Text>
           <Text style={styles.legalArrow}>→</Text>
         </TouchableOpacity>
+        <View style={styles.legalDivider} />
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('mailto:ancoraqui.app@gmail.com')}>
+          <Text style={styles.legalText}>Contattaci</Text>
+          <Text style={styles.legalArrow}>✉️</Text>
+        </TouchableOpacity>
       </View>
 
-      <Text style={styles.version}>Ancora Qui v1.0.1</Text>
+      <View style={styles.disclaimerBox}>
+        <Text style={styles.disclaimerText}>
+          Ancora Qui è uno strumento di supporto emotivo. Non è un servizio medico o psicologico e non sostituisce un professionista della salute mentale.
+        </Text>
+      </View>
+
+      <Text style={styles.version}>Ancora Qui v1.0.1 · Per utenti 18+</Text>
+
+      {/* RESET — visibile solo in sviluppo */}
+      {__DEV__ && (
+        <TouchableOpacity style={styles.resetBtn} onPress={resetApp}>
+          <Text style={styles.resetText}>🔄 Reset per test (solo sviluppo)</Text>
+        </TouchableOpacity>
+      )}
+
+      <View style={{ height: 40 }} />
 
       <Modal visible={editNome} transparent animationType="slide">
         <View style={styles.modalBg}>
@@ -225,12 +286,20 @@ const styles = StyleSheet.create({
   badgeItemLocked: { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: '#181c2a' },
   badgeEmoji: { fontSize: 24, marginBottom: 4 },
   badgeTitolo: { fontSize: 9, color: '#c9965a', textAlign: 'center' },
+  emergenzaCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: 'rgba(184,92,92,0.05)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.2)', borderRadius: 18, padding: 16 },
+  emergenzaTitolo: { fontSize: 13, fontWeight: '600', color: '#ddd8cf', marginBottom: 2 },
+  emergenzaSub: { fontSize: 10, color: '#5a5f72' },
+  emergenzaNum: { fontSize: 14, fontWeight: '700', color: '#c9965a' },
   legalCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
   legalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10 },
   legalText: { fontSize: 13, color: '#ddd8cf' },
   legalArrow: { fontSize: 13, color: '#5a5f72' },
   legalDivider: { height: 1, backgroundColor: '#181c2a' },
-  version: { textAlign: 'center', fontSize: 11, color: '#5a5f72', marginTop: 20, marginBottom: 40 },
+  disclaimerBox: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 14, padding: 14 },
+  disclaimerText: { fontSize: 11, color: '#5a5f72', lineHeight: 18, textAlign: 'center', fontStyle: 'italic' },
+  version: { textAlign: 'center', fontSize: 11, color: '#5a5f72', marginTop: 16, marginBottom: 8 },
+  resetBtn: { marginHorizontal: 20, marginTop: 8, padding: 14, alignItems: 'center' },
+  resetText: { fontSize: 12, color: '#b85c5c' },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 6, textAlign: 'center' },
