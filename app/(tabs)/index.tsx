@@ -43,7 +43,20 @@ const FRASI_GIORNI: Record<number, string> = {
   100: 'Cento giorni. Nessuno te li toglie. Mai.',
 };
 
-const getFraseGiorni = (giorni: number): string => {
+const FRASI_DOPO_RICADUTA: Record<string, string> = {
+  alta: 'Hai già fatto tantissimo. Quella forza è ancora tua.',
+  media: 'Sai già come si fa. Ricominci con qualcosa in più.',
+  bassa: 'Ci vuole coraggio a ricominciare. Sei ancora qui.',
+  zero: 'Sei qui. È già qualcosa.',
+};
+
+const getFraseGiorni = (giorni: number, ultimaRicaduta: number | null): string => {
+  if (giorni === 0 && ultimaRicaduta !== null) {
+    if (ultimaRicaduta >= 30) return FRASI_DOPO_RICADUTA.alta;
+    if (ultimaRicaduta >= 7) return FRASI_DOPO_RICADUTA.media;
+    if (ultimaRicaduta >= 1) return FRASI_DOPO_RICADUTA.bassa;
+    return FRASI_DOPO_RICADUTA.zero;
+  }
   if (FRASI_GIORNI[giorni]) return FRASI_GIORNI[giorni];
   if (giorni > 100) return `${giorni} giorni. Sei un esempio per tutti.`;
   if (giorni > 60) return `${giorni} giorni. Stai costruendo una vita nuova.`;
@@ -55,31 +68,11 @@ const getFraseGiorni = (giorni: number): string => {
 };
 
 const NOTIFICHE_TIPO: Record<string, string[]> = {
-  slot: [
-    'Come stai stasera? Sei ancora qui.',
-    'Una serata tranquilla vale più di qualsiasi altra cosa.',
-    'Sei ancora qui. Questo è tutto quello che conta.',
-  ],
-  sport: [
-    'Come stai? Sei ancora qui.',
-    'Stasera conta solo una cosa — che tu stia bene.',
-    'Sei ancora qui. Questo è già una vittoria.',
-  ],
-  casino: [
-    'Come stai questa sera? Sei ancora qui.',
-    'La notte è lunga. Sei ancora qui.',
-    'Sei ancora qui. Domani è un nuovo giorno.',
-  ],
-  gratta: [
-    'Come stai oggi? Sei ancora qui.',
-    'Una giornata alla volta. Sei ancora qui.',
-    'Sei ancora qui. È tutto quello che importa.',
-  ],
-  altro: [
-    'Come stai stasera? Sei ancora qui.',
-    'Sei ancora qui. Questo conta tutto.',
-    'Una serata, un giorno alla volta. Sei ancora qui.',
-  ],
+  slot: ['Come stai stasera? Sei ancora qui.', 'Una serata tranquilla vale più di qualsiasi altra cosa.', 'Sei ancora qui. Questo è tutto quello che conta.'],
+  sport: ['Come stai? Sei ancora qui.', 'Stasera conta solo una cosa — che tu stia bene.', 'Sei ancora qui. Questo è già una vittoria.'],
+  casino: ['Come stai questa sera? Sei ancora qui.', 'La notte è lunga. Sei ancora qui.', 'Sei ancora qui. Domani è un nuovo giorno.'],
+  gratta: ['Come stai oggi? Sei ancora qui.', 'Una giornata alla volta. Sei ancora qui.', 'Sei ancora qui. È tutto quello che importa.'],
+  altro: ['Come stai stasera? Sei ancora qui.', 'Sei ancora qui. Questo conta tutto.', 'Una serata, un giorno alla volta. Sei ancora qui.'],
   default: ['Come stai stasera? Sei ancora qui — e questo conta tutto.'],
 };
 
@@ -115,12 +108,19 @@ export default function HomeScreen() {
   const [domandaOggi, setDomandaOggi] = useState('');
   const [settimana, setSettimana] = useState<boolean[]>(Array(7).fill(false));
   const [oggiResistito, setOggiResistito] = useState(false);
+  const [ultimaRicaduta, setUltimaRicaduta] = useState<number | null>(null);
   const animaFade = useRef(new Animated.Value(0)).current;
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
 
-  useFocusEffect(useCallback(() => { caricaDati(); caricaOnline(); caricaMood(); }, []));
+  useFocusEffect(useCallback(() => {
+    caricaDati();
+    caricaOnline();
+    caricaMood();
+  }, []));
+
   useEffect(() => { richiediPermessi(); }, []);
+
   useEffect(() => {
     Animated.timing(animaFade, { toValue: 1, duration: 800, useNativeDriver: true }).start();
     if (giorni >= 1) controllaCheckin();
@@ -134,6 +134,7 @@ export default function HomeScreen() {
       const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
       const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
       const ultimoCheckin = await AsyncStorageLib.getItem('ultimoCheckin');
+      const ricadutaStr = await AsyncStorageLib.getItem('ultimaRicadutaGiorni');
       const inizio = new Date(dataInizio);
       const oggi = new Date();
       const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
@@ -144,6 +145,16 @@ export default function HomeScreen() {
       setSpesaGiornaliera(spesaNum);
       setOggiResistito(ultimoCheckin === oggi.toDateString());
       setRisparmi(diff * spesaNum);
+
+      // Carica ultima ricaduta — solo se siamo al giorno 0
+      if (diff === 0 && ricadutaStr) {
+        setUltimaRicaduta(parseInt(ricadutaStr));
+      } else {
+        setUltimaRicaduta(null);
+        // Se non siamo più al giorno 0 puliamo il flag
+        if (diff > 0) await AsyncStorageLib.removeItem('ultimaRicadutaGiorni');
+      }
+
       controllaBadge(diff);
       const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
       const nuovaSettimana = Array(7).fill(false).map((_, i) => {
@@ -283,7 +294,6 @@ export default function HomeScreen() {
     { emoji: '💪', label: 'Ok' },
   ];
 
-  // Sezione soldi — proiezione se giorni < 3
   const renderSoldi = () => {
     if (giorni < 3) {
       return (
@@ -356,7 +366,7 @@ export default function HomeScreen() {
           </Text>
         </View>
         <Text style={styles.streakN}>{giorni}</Text>
-        <Text style={styles.fraseMotivazioneText}>{getFraseGiorni(giorni)}</Text>
+        <Text style={styles.fraseMotivazioneText}>{getFraseGiorni(giorni, ultimaRicaduta)}</Text>
         <View style={styles.weekRow}>
           {giorniSettimana.map((g, i) => (
             <View key={i} style={styles.weekDay}>
@@ -367,7 +377,6 @@ export default function HomeScreen() {
         </View>
       </View>
 
-      {/* MICRO PROGRESSO — solo dal giorno 2 */}
       {giorni >= 2 && (
         <View style={[styles.microProgressoCard, oggiResistito && styles.microProgressoCardOn]}>
           <Text style={[styles.microProgressoEmoji, { color: oggiResistito ? '#6aaa82' : '#5a5f72' }]}>

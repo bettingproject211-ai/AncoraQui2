@@ -76,6 +76,9 @@ export default function RicadutaScreen() {
     try {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
+      // Salva giorni della ricaduta per personalizzare il messaggio in home
+      await AsyncStorageLib.setItem('ultimaRicadutaGiorni', giorni.toString());
+
       // Salva ricaduta nel diario
       const impulsiStr = await AsyncStorageLib.getItem('impulsi');
       const impulsi = impulsiStr ? JSON.parse(impulsiStr) : [];
@@ -94,7 +97,6 @@ export default function RicadutaScreen() {
       await AsyncStorageLib.setItem('dataInizio', new Date().toISOString());
       await AsyncStorageLib.setItem('ultimoCheckin', '');
 
-      // Messaggio finale personalizzato
       setMessaggioFinale(getMessaggioIncoraggiamento(giorni));
       setConfirmModal(false);
       setStep(3);
@@ -105,7 +107,6 @@ export default function RicadutaScreen() {
   if (step === 0) {
     return (
       <Animated.ScrollView style={[styles.container, { opacity: animaFade }]} contentContainerStyle={styles.content}>
-
         <Text style={styles.emoji}>🤲</Text>
         <Text style={styles.titolo}>È successo.{'\n'}Va bene.</Text>
         <Text style={styles.sub}>Sei ancora qui — e questo è già qualcosa.</Text>
@@ -114,9 +115,7 @@ export default function RicadutaScreen() {
           <View style={styles.giorniCard}>
             <Text style={styles.giorniLbl}>GIORNI CHE RESTANO TUOI</Text>
             <Text style={styles.giorniNum}>{giorni}</Text>
-            <Text style={styles.giorniSub}>
-              Nessuna ricaduta te li toglie. Mai.
-            </Text>
+            <Text style={styles.giorniSub}>Nessuna ricaduta te li toglie. Mai.</Text>
           </View>
         )}
 
@@ -138,7 +137,6 @@ export default function RicadutaScreen() {
         <TouchableOpacity style={styles.btnSecondario} onPress={() => router.replace('/')}>
           <Text style={styles.btnSecondarioText}>← Torna alla home</Text>
         </TouchableOpacity>
-
       </Animated.ScrollView>
     );
   }
@@ -147,11 +145,10 @@ export default function RicadutaScreen() {
   if (step === 1) {
     return (
       <Animated.ScrollView style={[styles.container, { opacity: animaFade }]} contentContainerStyle={styles.content}>
-
         <Text style={styles.emoji}>🔍</Text>
         <Text style={styles.titolo}>Cosa è successo?</Text>
         <Text style={styles.sub}>
-          Non per giudicarti. Per capire insieme cosa ha scatenato questo momento — così la prossima volta lo riconosci prima.
+          Non per giudicarti. Per capire insieme cosa ha scatenato questo momento.
         </Text>
 
         <View style={styles.triggerGrid}>
@@ -179,7 +176,6 @@ export default function RicadutaScreen() {
         <TouchableOpacity style={styles.btnSecondario} onPress={() => setStep(0)}>
           <Text style={styles.btnSecondarioText}>← Indietro</Text>
         </TouchableOpacity>
-
       </Animated.ScrollView>
     );
   }
@@ -188,12 +184,9 @@ export default function RicadutaScreen() {
   if (step === 2) {
     return (
       <Animated.ScrollView style={[styles.container, { opacity: animaFade }]} contentContainerStyle={styles.content}>
-
         <Text style={styles.emoji}>💙</Text>
         <Text style={styles.titolo}>Vuoi resettare{'\n'}il contatore?</Text>
-        <Text style={styles.sub}>
-          Non è obbligatorio. Puoi tornare alla home senza cambiare nulla.
-        </Text>
+        <Text style={styles.sub}>Non è obbligatorio. Puoi tornare alla home senza cambiare nulla.</Text>
 
         {giorni >= 7 && (
           <View style={styles.giorniCard}>
@@ -212,7 +205,6 @@ export default function RicadutaScreen() {
           </Text>
         </View>
 
-        {/* TORNA SENZA RESETTARE — bottone principale */}
         <TouchableOpacity
           style={styles.btnPrimario}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.replace('/'); }}
@@ -220,7 +212,6 @@ export default function RicadutaScreen() {
           <Text style={styles.btnPrimarioText}>← Torna senza resettare</Text>
         </TouchableOpacity>
 
-        {/* RESET — bottone secondario e meno visibile */}
         <TouchableOpacity
           style={styles.btnReset}
           onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); setConfirmModal(true); }}
@@ -246,15 +237,13 @@ export default function RicadutaScreen() {
             </View>
           </View>
         </Modal>
-
       </Animated.ScrollView>
     );
   }
 
-  // STEP 3 — Messaggio finale dopo reset
+  // STEP 3 — Messaggio finale
   return (
     <Animated.ScrollView style={[styles.container, { opacity: animaFade }]} contentContainerStyle={styles.content}>
-
       <Text style={styles.emoji}>🌅</Text>
       <Text style={styles.titolo}>{messaggioFinale?.titolo}</Text>
       <Text style={styles.sub}>Sei ancora qui.</Text>
@@ -285,7 +274,6 @@ export default function RicadutaScreen() {
       >
         <Text style={styles.btnPrimarioText}>Torna alla home →</Text>
       </TouchableOpacity>
-
     </Animated.ScrollView>
   );
 }
