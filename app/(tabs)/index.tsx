@@ -21,14 +21,71 @@ const BADGES = [
   { giorni: 3, emoji: '🔥', titolo: 'Tre giorni', desc: 'Il più difficile è passato.' },
   { giorni: 7, emoji: '⭐', titolo: 'Una settimana', desc: 'Sette giorni di forza vera.' },
   { giorni: 14, emoji: '🌙', titolo: 'Due settimane', desc: 'Stai costruendo qualcosa di reale.' },
+  { giorni: 21, emoji: '💫', titolo: 'Tre settimane', desc: '21 giorni. Le abitudini cambiano. Ce l\'hai fatta.' },
   { giorni: 30, emoji: '🏆', titolo: 'Un mese', desc: 'Un mese intero. Sei incredibile.' },
   { giorni: 60, emoji: '💎', titolo: 'Due mesi', desc: 'Hai cambiato la tua vita.' },
   { giorni: 100, emoji: '🚀', titolo: '100 giorni', desc: 'Cento giorni. Nessuno te li toglie.' },
 ];
 
-const NOTIFICHE: Record<string, string> = {
+const FRASI_GIORNI: Record<number, string> = {
+  0: 'Sei qui. È già qualcosa.',
+  1: 'Un giorno. Il tuo cervello inizia già a cambiare.',
+  2: 'Due giorni. Stai dimostrando qualcosa a te stesso.',
+  3: 'Tre giorni. I più difficili. Li hai superati.',
+  4: 'Quattro giorni. La strada si vede.',
+  5: 'Cinque giorni. Sei più forte di quello che pensi.',
+  6: 'Sei giorni. Domani è una settimana.',
+  7: 'Una settimana. Sai quanti non arrivano qui? Tu sì.',
+  14: 'Due settimane. Le abitudini iniziano a cambiare.',
+  21: '21 giorni. La scienza dice che basta per cambiare un\'abitudine. Ci sei.',
+  30: 'Un mese. Non è poco. È tantissimo.',
+  60: 'Due mesi. Hai cambiato qualcosa di profondo.',
+  100: 'Cento giorni. Nessuno te li toglie. Mai.',
+};
+
+const getFraseGiorni = (giorni: number): string => {
+  if (FRASI_GIORNI[giorni]) return FRASI_GIORNI[giorni];
+  if (giorni > 100) return `${giorni} giorni. Sei un esempio per tutti.`;
+  if (giorni > 60) return `${giorni} giorni. Stai costruendo una vita nuova.`;
+  if (giorni > 30) return `${giorni} giorni. Un mese e più. Continua.`;
+  if (giorni > 21) return `${giorni} giorni. Sei nel periodo più importante.`;
+  if (giorni > 14) return `${giorni} giorni. Ogni giorno conta.`;
+  if (giorni > 7) return `${giorni} giorni. Stai resistendo davvero.`;
+  return `${giorni} giorni. Sei ancora qui.`;
+};
+
+const NOTIFICHE_TIPO: Record<string, string[]> = {
+  slot: [
+    'Come stai stasera? Sei ancora qui.',
+    'Una serata tranquilla vale più di qualsiasi altra cosa.',
+    'Sei ancora qui. Questo è tutto quello che conta.',
+  ],
+  sport: [
+    'Come stai? Sei ancora qui.',
+    'Stasera conta solo una cosa — che tu stia bene.',
+    'Sei ancora qui. Questo è già una vittoria.',
+  ],
+  casino: [
+    'Come stai questa sera? Sei ancora qui.',
+    'La notte è lunga. Sei ancora qui.',
+    'Sei ancora qui. Domani è un nuovo giorno.',
+  ],
+  gratta: [
+    'Come stai oggi? Sei ancora qui.',
+    'Una giornata alla volta. Sei ancora qui.',
+    'Sei ancora qui. È tutto quello che importa.',
+  ],
+  altro: [
+    'Come stai stasera? Sei ancora qui.',
+    'Sei ancora qui. Questo conta tutto.',
+    'Una serata, un giorno alla volta. Sei ancora qui.',
+  ],
+  default: ['Come stai stasera? Sei ancora qui — e questo conta tutto.'],
+};
+
+const NOTIFICHE_MOOD: Record<string, string> = {
   'Stanco': 'Sei stanco — lo sappiamo. Non aprire quell\'altra app. Sei ancora qui.',
-  'Solo': 'Stasera ti senti solo. Entra nelle Voci — ci sono persone che capiscono.',
+  'Solo': 'Stasera ti senti solo. Entra nel Forum — ci sono persone che capiscono.',
   'Nervoso': 'Giornata pesante? Respira. Apri l\'app prima di fare altro.',
   'Ok': 'Stai bene stasera. Registra questo momento nel diario. 💪',
   'default': 'Come stai stasera? Sei ancora qui — e questo conta tutto.',
@@ -47,6 +104,7 @@ const DOMANDE = [
 export default function HomeScreen() {
   const [giorni, setGiorni] = useState(0);
   const [risparmi, setRisparmi] = useState(0);
+  const [spesaGiornaliera, setSpesaGiornaliera] = useState(30);
   const [perche, setPerche] = useState('');
   const [nomeUtente, setNomeUtente] = useState('');
   const [onlineCount, setOnlineCount] = useState(0);
@@ -56,48 +114,35 @@ export default function HomeScreen() {
   const [checkinRisposta, setCheckinRisposta] = useState('');
   const [domandaOggi, setDomandaOggi] = useState('');
   const [settimana, setSettimana] = useState<boolean[]>(Array(7).fill(false));
+  const [oggiResistito, setOggiResistito] = useState(false);
   const animaFade = useRef(new Animated.Value(0)).current;
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
 
-  useFocusEffect(
-    useCallback(() => {
-      caricaDati();
-      caricaOnline();
-      caricaMood();
-    }, [])
-  );
-
+  useFocusEffect(useCallback(() => { caricaDati(); caricaOnline(); caricaMood(); }, []));
+  useEffect(() => { richiediPermessi(); }, []);
   useEffect(() => {
-    richiediPermessi();
-  }, []);
-
-  useEffect(() => {
-    Animated.timing(animaFade, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
+    Animated.timing(animaFade, { toValue: 1, duration: 800, useNativeDriver: true }).start();
     if (giorni >= 1) controllaCheckin();
   }, [giorni]);
 
   const caricaDati = async () => {
     try {
       const dataInizio = await AsyncStorageLib.getItem('dataInizio');
-      if (!dataInizio) {
-        router.replace('/(tabs)/onboarding' as any);
-        return;
-      }
+      if (!dataInizio) { router.replace('/(tabs)/onboarding' as any); return; }
       const percheStr = await AsyncStorageLib.getItem('perche');
       const spesa = await AsyncStorageLib.getItem('spesaGiornaliera');
       const nomeStr = await AsyncStorageLib.getItem('nomeUtente');
+      const ultimoCheckin = await AsyncStorageLib.getItem('ultimoCheckin');
       const inizio = new Date(dataInizio);
       const oggi = new Date();
       const diff = Math.floor((oggi.getTime() - inizio.getTime()) / (1000 * 60 * 60 * 24));
+      const spesaNum = spesa ? parseFloat(spesa) : 30;
       setGiorni(diff);
       setPerche(percheStr || '');
       setNomeUtente(nomeStr || '');
-      const spesaNum = spesa ? parseFloat(spesa) : 30;
+      setSpesaGiornaliera(spesaNum);
+      setOggiResistito(ultimoCheckin === oggi.toDateString());
       setRisparmi(diff * spesaNum);
       controllaBadge(diff);
       const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
@@ -124,14 +169,12 @@ export default function HomeScreen() {
   const salvaCheckin = async () => {
     try {
       await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString());
+      setOggiResistito(true);
       if (checkinRisposta.trim()) {
         const impulsiStr = await AsyncStorageLib.getItem('impulsi');
         const impulsi = impulsiStr ? JSON.parse(impulsiStr) : [];
         const nuovo = {
-          id: Date.now(),
-          trigger: 'Check-in',
-          nota: checkinRisposta.trim(),
-          resistito: true,
+          id: Date.now(), trigger: 'Check-in', nota: checkinRisposta.trim(), resistito: true,
           ora: new Date().getHours(),
           oraLabel: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
           data: new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
@@ -140,6 +183,7 @@ export default function HomeScreen() {
       }
       setCheckinModal(false);
       setCheckinRisposta('');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (e) {}
   };
 
@@ -153,10 +197,7 @@ export default function HomeScreen() {
   const caricaOnline = async () => {
     try {
       const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      const { count } = await supabase
-        .from('voci')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', ieri);
+      const { count } = await supabase.from('voci').select('*', { count: 'exact', head: true }).gte('created_at', ieri);
       setOnlineCount(count || 0);
     } catch (e) {}
   };
@@ -164,17 +205,14 @@ export default function HomeScreen() {
   const richiediPermessi = async () => {
     try {
       const { status } = await Notifications.requestPermissionsAsync();
-      if (status === 'granted') {
-        programmaNotificaSera();
-        programmaNotificaMattina();
-      }
+      if (status === 'granted') { programmaNotificaSera(); programmaNotificaMattina(); }
     } catch (e) {}
   };
 
   const programmaNotificaMattina = async () => {
     try {
       await Notifications.scheduleNotificationAsync({
-        content: { title: 'Ancora Qui 🌅', body: 'Buongiorno. Oggi è un nuovo giorno.' },
+        content: { title: 'Ancora Qui 🌅', body: 'Buongiorno. Oggi è un nuovo giorno. Sei ancora qui.' },
         trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 0 },
       });
     } catch (e) {}
@@ -182,8 +220,15 @@ export default function HomeScreen() {
 
   const programmaNotificaSera = async (mood?: string) => {
     try {
-      const moodSalvato = mood || await AsyncStorageLib.getItem('moodOggi') || 'default';
-      const body = NOTIFICHE[moodSalvato] || NOTIFICHE['default'];
+      const moodSalvato = mood || await AsyncStorageLib.getItem('moodOggi');
+      const tipo = await AsyncStorageLib.getItem('tipoGioco') || 'default';
+      let body = NOTIFICHE_MOOD['default'];
+      if (moodSalvato && NOTIFICHE_MOOD[moodSalvato]) {
+        body = NOTIFICHE_MOOD[moodSalvato];
+      } else {
+        const notificheTipo = NOTIFICHE_TIPO[tipo] || NOTIFICHE_TIPO['default'];
+        body = notificheTipo[Math.floor(Math.random() * notificheTipo.length)];
+      }
       await Notifications.cancelAllScheduledNotificationsAsync();
       await Notifications.scheduleNotificationAsync({
         content: { title: 'Ancora Qui 🌙', body },
@@ -217,9 +262,7 @@ export default function HomeScreen() {
   const condividiMilestone = async () => {
     if (!badgeModal) return;
     try {
-      await Share.share({
-        message: `${badgeModal.emoji} Ho raggiunto "${badgeModal.titolo}" con Ancora Qui.\n\n${badgeModal.desc}\n\nAnche tu puoi farcela. Sei ancora qui. 🤝`,
-      });
+      await Share.share({ message: `${badgeModal.emoji} Ho raggiunto "${badgeModal.titolo}" con Ancora Qui.\n\n${badgeModal.desc}\n\nAnche tu puoi farcela. Sei ancora qui. 🤝` });
     } catch (e) {}
   };
 
@@ -240,19 +283,54 @@ export default function HomeScreen() {
     { emoji: '💪', label: 'Ok' },
   ];
 
+  // Sezione soldi — proiezione se giorni < 3
+  const renderSoldi = () => {
+    if (giorni < 3) {
+      return (
+        <View style={styles.card}>
+          <Text style={styles.cardLbl}>COSA PUOI RISPARMIARE</Text>
+          <View style={styles.proiezioneRow}>
+            <View style={styles.proiezioneItem}>
+              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 7).toFixed(0)}</Text>
+              <Text style={styles.proiezioneLbl}>in 7 giorni</Text>
+            </View>
+            <View style={styles.proiezioneDivider} />
+            <View style={styles.proiezioneItem}>
+              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 30).toFixed(0)}</Text>
+              <Text style={styles.proiezioneLbl}>in 30 giorni</Text>
+            </View>
+            <View style={styles.proiezioneDivider} />
+            <View style={styles.proiezioneItem}>
+              <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 100).toFixed(0)}</Text>
+              <Text style={styles.proiezioneLbl}>in 100 giorni</Text>
+            </View>
+          </View>
+          <Text style={styles.proiezioneSub}>Ogni giorno che passa, questi numeri diventano reali. 🌱</Text>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.card}>
+        <View style={styles.moneyRow}>
+          <Text style={styles.cardLbl}>HAI GIÀ RISPARMIATO</Text>
+          <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
+        </View>
+        {risparmi >= 10 && <Text style={styles.moneyItem}>🍕  = {Math.floor(risparmi / 10)} pizze</Text>}
+        {risparmi >= 235 && <Text style={styles.moneyItem}>🛒  = {Math.floor(risparmi / 235)} mesi di spesa</Text>}
+        {risparmi >= 500 && <Text style={styles.moneyItem}>👶  = primo corredino raggiunto ✓</Text>}
+      </View>
+    );
+  };
+
   return (
     <Animated.ScrollView style={[styles.container, { opacity: animaFade }]}>
 
-      {/* HEADER CON LOGO GRANDE */}
       <View style={styles.topbar}>
         <View>
           <Text style={styles.logoSmall}>benvenuto</Text>
           <Text style={styles.logo}>Ancora Qui</Text>
         </View>
-        <TouchableOpacity style={styles.avatar} onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/(tabs)/profilo' as any);
-        }}>
+        <TouchableOpacity style={styles.avatar} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profilo' as any); }}>
           <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
         </TouchableOpacity>
       </View>
@@ -278,7 +356,7 @@ export default function HomeScreen() {
           </Text>
         </View>
         <Text style={styles.streakN}>{giorni}</Text>
-        <Text style={styles.streakU}>giorni consecutivi</Text>
+        <Text style={styles.fraseMotivazioneText}>{getFraseGiorni(giorni)}</Text>
         <View style={styles.weekRow}>
           {giorniSettimana.map((g, i) => (
             <View key={i} style={styles.weekDay}>
@@ -288,6 +366,23 @@ export default function HomeScreen() {
           ))}
         </View>
       </View>
+
+      {/* MICRO PROGRESSO — solo dal giorno 2 */}
+      {giorni >= 2 && (
+        <View style={[styles.microProgressoCard, oggiResistito && styles.microProgressoCardOn]}>
+          <Text style={[styles.microProgressoEmoji, { color: oggiResistito ? '#6aaa82' : '#5a5f72' }]}>
+            {oggiResistito ? '✓' : '○'}
+          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.microProgressoTitolo}>
+              {oggiResistito ? 'Oggi hai resistito' : 'Oggi non ancora registrato'}
+            </Text>
+            <Text style={styles.microProgressoSub}>
+              {oggiResistito ? 'Ottimo lavoro. Continua così.' : 'Apri il diario e registra come stai.'}
+            </Text>
+          </View>
+        </View>
+      )}
 
       {badgeRaggunti.length > 0 && (
         <View style={styles.badgesRow}>
@@ -303,14 +398,7 @@ export default function HomeScreen() {
         </View>
       )}
 
-      <View style={styles.card}>
-        <View style={styles.moneyRow}>
-          <Text style={styles.cardLbl}>RISPARMIATI</Text>
-          <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
-        </View>
-        <Text style={styles.moneyItem}>🍕  = {Math.floor(risparmi / 235)} mesi di spesa alimentare</Text>
-        <Text style={styles.moneyItem}>👶  = {risparmi >= 500 ? 'primo corredino raggiunto ✓' : `mancano €${(500 - risparmi).toFixed(0)} al corredino`}</Text>
-      </View>
+      {renderSoldi()}
 
       <View style={styles.card}>
         <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
@@ -399,8 +487,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#06080f' },
   topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: 20, paddingTop: 60, paddingBottom: 16 },
-  logoSmall: { fontSize: 11, color: '#5a5f72', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 4 },
-  logo: { fontSize: 32, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic', lineHeight: 36 },
+  logoSmall: { fontSize: 10, color: '#5a5f72', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 4 },
+  logo: { fontSize: 28, color: '#c9965a', fontFamily: 'Lora_400Regular_Italic', lineHeight: 32 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 16, fontWeight: '700', color: '#1a0f00' },
   onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 6, marginHorizontal: 20, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.15)', borderRadius: 100, paddingHorizontal: 12, paddingVertical: 6, alignSelf: 'flex-start' },
@@ -415,13 +503,18 @@ const styles = StyleSheet.create({
   streakLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5 },
   streakNext: { fontSize: 9, color: '#c9965a' },
   streakN: { fontSize: 60, fontWeight: '700', color: '#6aaa82', lineHeight: 64, fontFamily: 'Lora_700Bold' },
-  streakU: { fontSize: 12, color: '#5a5f72', marginBottom: 12 },
+  fraseMotivazioneText: { fontSize: 13, color: '#5a5f72', fontStyle: 'italic', marginBottom: 14, lineHeight: 20 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between' },
   weekDay: { alignItems: 'center', gap: 4, flex: 1 },
   weekDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: '#1e2336' },
   weekDotOn: { backgroundColor: '#6aaa82', borderColor: '#6aaa82' },
   weekLbl: { fontSize: 9, color: '#5a5f72' },
-  badgesRow: { marginHorizontal: 20, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
+  microProgressoCard: { marginHorizontal: 20, marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 16, padding: 14 },
+  microProgressoCardOn: { borderColor: 'rgba(106,170,130,0.3)', backgroundColor: 'rgba(106,170,130,0.05)' },
+  microProgressoEmoji: { fontSize: 22, fontWeight: '700', width: 28, textAlign: 'center' },
+  microProgressoTitolo: { fontSize: 13, fontWeight: '600', color: '#ddd8cf', marginBottom: 2 },
+  microProgressoSub: { fontSize: 11, color: '#5a5f72' },
+  badgesRow: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 14 },
   badgesLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 1.5, marginBottom: 10 },
   badges: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   badge: { alignItems: 'center', backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.2)', borderRadius: 12, padding: 8, minWidth: 60 },
@@ -432,6 +525,12 @@ const styles = StyleSheet.create({
   moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   moneyVal: { fontSize: 22, color: '#c9965a', fontWeight: '700', fontFamily: 'Lora_700Bold' },
   moneyItem: { fontSize: 11, color: '#a8a29a', marginBottom: 4 },
+  proiezioneRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
+  proiezioneItem: { flex: 1, alignItems: 'center' },
+  proiezioneNum: { fontSize: 18, fontWeight: '700', color: '#6aaa82', fontFamily: 'Lora_700Bold', marginBottom: 4 },
+  proiezioneLbl: { fontSize: 10, color: '#5a5f72' },
+  proiezioneDivider: { width: 1, backgroundColor: '#181c2a', marginVertical: 4 },
+  proiezioneSub: { fontSize: 11, color: '#5a5f72', textAlign: 'center', fontStyle: 'italic' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   pill: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 100, borderWidth: 1, borderColor: '#1e2336' },
   pillOn: { borderColor: 'rgba(201,150,90,0.35)', backgroundColor: 'rgba(201,150,90,0.07)' },
