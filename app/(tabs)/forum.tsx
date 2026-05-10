@@ -86,6 +86,7 @@ export default function ForumScreen() {
   const [contattoNome, setContattoNome] = useState('');
   const [contattoNumero, setContattoNumero] = useState('');
   const [rispostaMenzione, setRispostaMenzione] = useState('');
+  const scrollRef = useRef<ScrollView>(null);
 
   useFocusEffect(useCallback(() => {
     inizializza();
@@ -95,8 +96,13 @@ export default function ForumScreen() {
 
   useEffect(() => { caricaPosts(); }, [categoriaSelezionata]);
 
+  useEffect(() => {
+    if (replies.length > 0) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
+    }
+  }, [replies]);
+
   const inizializza = async () => {
-    // Carica o genera nickname fisso
     try {
       const nickStr = await AsyncStorageLib.getItem('forum_nickname');
       if (nickStr) {
@@ -108,14 +114,10 @@ export default function ForumScreen() {
         await AsyncStorageLib.setItem('forum_nickname', JSON.stringify(nick));
         setMyNickname(nick);
       }
-
-      // Carica contatto fiducia per alert crisi
       const cn = await AsyncStorageLib.getItem('contattoNome');
       const cnum = await AsyncStorageLib.getItem('contattoNumero');
       setContattoNome(cn || '');
       setContattoNumero(cnum || '');
-
-      // Controlla prima apertura
       const visto = await AsyncStorageLib.getItem('forum_regolamento_visto');
       if (!visto) setRegolamentoModal(true);
     } catch (e) {}
@@ -167,20 +169,16 @@ export default function ForumScreen() {
   };
 
   const mostraAlertCrisi = () => {
-    const buttons: any[] = [
-      { text: '🆘 Chiama il 112', onPress: () => Linking.openURL('tel:112'), style: 'destructive' },
-      { text: '📞 SerD — 800 274 274', onPress: () => Linking.openURL('tel:800274274') },
-    ];
-
+    const buttons: any[] = [];
     if (contattoNumero) {
-      buttons.unshift({
+      buttons.push({
         text: `💙 Chiama ${contattoNome || 'la tua persona'}`,
         onPress: () => Linking.openURL(`tel:${contattoNumero}`),
       });
     }
-
+    buttons.push({ text: '📞 SerD — 800 274 274', onPress: () => Linking.openURL('tel:800274274') });
+    buttons.push({ text: '🆘 Chiama il 112', onPress: () => Linking.openURL('tel:112'), style: 'destructive' });
     buttons.push({ text: 'Continua a scrivere', style: 'cancel' });
-
     Alert.alert(
       '💙 Sei al sicuro?',
       'Sembra che tu stia attraversando un momento molto difficile.\n\nNon sei solo/a. Vuoi parlare con qualcuno adesso?',
@@ -206,9 +204,7 @@ export default function ForumScreen() {
         categoria: categoriaNuova,
       });
       if (!error) {
-        setTitoloNuovo('');
-        setTestoNuovo('');
-        setCategoriaNuova('primo_giorno');
+        setTitoloNuovo(''); setTestoNuovo(''); setCategoriaNuova('primo_giorno');
         setNuovoPostModal(false);
         caricaPosts();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -262,9 +258,7 @@ export default function ForumScreen() {
     const nuovoCount = giaLiked ? likeAttuale - 1 : likeAttuale + 1;
     await supabase.from('forum_posts').update({ likes: nuovoCount }).eq('id', postId);
     setPosts(prev => prev.map(p => p.id === postId ? { ...p, likes: nuovoCount } : p));
-    if (postDettaglio?.id === postId) {
-      setPostDettaglio({ ...postDettaglio, likes: nuovoCount });
-    }
+    if (postDettaglio?.id === postId) setPostDettaglio({ ...postDettaglio, likes: nuovoCount });
   };
 
   const segnalaPost = (postId: string) => {
@@ -274,11 +268,22 @@ export default function ForumScreen() {
         text: 'Segnala',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('forum_posts').update({ reported: true }).eq('id', postId);
-          setPosts(prev => prev.filter(p => p.id !== postId));
-          if (postDettaglio?.id === postId) { setPostDettaglio(null); setReplies([]); }
+          const post = posts.find(p => p.id === postId);
+          const nuovoCount = (post?.report_count || 0) + 1;
+          const daNascondere = nuovoCount >= 3;
+          await supabase.from('forum_posts')
+            .update({ report_count: nuovoCount, reported: daNascondere })
+            .eq('id', postId);
+          setPosts(prev => daNascondere
+            ? prev.filter(p => p.id !== postId)
+            : prev.map(p => p.id === postId ? { ...p, report_count: nuovoCount } : p)
+          );
+          if (daNascondere && postDettaglio?.id === postId) { setPostDettaglio(null); setReplies([]); }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert('Grazie', 'Il contenuto è stato segnalato e sarà rimosso entro 72 ore.');
+          Alert.alert('Grazie', daNascondere
+            ? 'Il contenuto è stato rimosso automaticamente dopo più segnalazioni.'
+            : 'Il contenuto è stato segnalato. Sarà rimosso dopo ulteriori segnalazioni.'
+          );
         }
       }
     ]);
@@ -291,9 +296,20 @@ export default function ForumScreen() {
         text: 'Segnala',
         style: 'destructive',
         onPress: async () => {
-          await supabase.from('forum_replies').update({ reported: true }).eq('id', replyId);
-          setReplies(prev => prev.filter(r => r.id !== replyId));
-          Alert.alert('Grazie', 'La risposta è stata segnalata.');
+          const reply = replies.find(r => r.id === replyId);
+          const nuovoCount = (reply?.report_count || 0) + 1;
+          const daNascondere = nuovoCount >= 3;
+          await supabase.from('forum_replies')
+            .update({ report_count: nuovoCount, reported: daNascondere })
+            .eq('id', replyId);
+          setReplies(prev => daNascondere
+            ? prev.filter(r => r.id !== replyId)
+            : prev.map(r => r.id === replyId ? { ...r, report_count: nuovoCount } : r)
+          );
+          Alert.alert('Grazie', daNascondere
+            ? 'La risposta è stata rimossa automaticamente.'
+            : 'La risposta è stata segnalata.'
+          );
         }
       }
     ]);
@@ -364,7 +380,14 @@ export default function ForumScreen() {
               </View>
             </View>
 
-            <ScrollView style={styles.dettaglioScroll} keyboardShouldPersistTaps="handled">
+            <ScrollView
+              ref={scrollRef}
+              style={styles.dettaglioScroll}
+              keyboardShouldPersistTaps="handled"
+              onContentSizeChange={() => {
+                if (replies.length > 0) scrollRef.current?.scrollToEnd({ animated: true });
+              }}
+            >
               <View style={styles.dettaglioPost}>
                 <View style={styles.postTopRow}>
                   <View style={styles.avatar}><Text style={styles.avEmoji}>{postDettaglio?.emoji}</Text></View>
@@ -410,7 +433,6 @@ export default function ForumScreen() {
               <View style={{ height: 20 }} />
             </ScrollView>
 
-            {/* RISPOSTA CON MENZIONE */}
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
               {rispostaMenzione ? (
                 <View style={styles.menzioneBar}>
@@ -428,6 +450,7 @@ export default function ForumScreen() {
                   value={testoRisposta}
                   onChangeText={setTestoRisposta}
                   multiline
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 400)}
                 />
                 <TouchableOpacity style={styles.rispostaBtn} onPress={inviaRisposta} disabled={invio}>
                   <Text style={styles.rispostaBtnText}>{invio ? '...' : '→'}</Text>
