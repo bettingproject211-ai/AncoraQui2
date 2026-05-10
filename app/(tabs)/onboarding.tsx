@@ -2,7 +2,7 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const TIPI_GIOCO = [
   { emoji: '🎰', label: 'Slot e macchinette', value: 'slot' },
@@ -36,25 +36,11 @@ export default function OnboardingScreen() {
   };
 
   const schermate = [
-    {
-      emoji: '🤲',
-      titolo: 'Questa app non ti giudica.',
-      testo: 'Non ti dice cosa fare.\nÈ semplicemente qui.',
-    },
-    {
-      emoji: '👁️',
-      titolo: 'Sappiamo che smettere non è semplice come sembra.',
-      testo: 'Nessuno lo sa meglio di chi ci è passato.',
-    },
-    {
-      emoji: '📱',
-      titolo: 'Una cosa sola.',
-      testo: 'Mettici in homepage.\nNei momenti difficili devi trovarci subito.',
-      istruzioni: true,
-    },
+    { emoji: '🤲', titolo: 'Questa app non ti giudica.', testo: 'Non ti dice cosa fare.\nÈ semplicemente qui.' },
+    { emoji: '👁️', titolo: 'Sappiamo che smettere non è semplice come sembra.', testo: 'Nessuno lo sa meglio di chi ci è passato.' },
+    { emoji: '📱', titolo: 'Una cosa sola.', testo: 'Mettici in homepage.\nNei momenti difficili devi trovarci subito.', istruzioni: true },
   ];
 
-  // Schermate intro
   if (step < 3) {
     const schermata = schermate[step];
     return (
@@ -79,10 +65,7 @@ export default function OnboardingScreen() {
               <View key={i} style={[styles.dot, step === i && styles.dotOn]} />
             ))}
           </View>
-          <TouchableOpacity
-            style={styles.nextBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStep(step + 1); }}
-          >
+          <TouchableOpacity style={styles.nextBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStep(step + 1); }}>
             <Text style={styles.nextBtnText}>{step === 2 ? 'Iniziamo →' : 'Continua →'}</Text>
           </TouchableOpacity>
           {step > 0 && (
@@ -95,7 +78,6 @@ export default function OnboardingScreen() {
     );
   }
 
-  // Step 3 — Tipo di gioco
   if (step === 3) {
     return (
       <View style={styles.container}>
@@ -117,10 +99,7 @@ export default function OnboardingScreen() {
           ))}
         </View>
         <View style={styles.introBottom}>
-          <TouchableOpacity
-            style={styles.nextBtn}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStep(4); }}
-          >
+          <TouchableOpacity style={styles.nextBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setStep(4); }}>
             <Text style={styles.nextBtnText}>Continua →</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => { setTipoGioco('altro'); setStep(4); }}>
@@ -131,107 +110,69 @@ export default function OnboardingScreen() {
     );
   }
 
-  // Step 4 — Form
   return (
-    <ScrollView style={styles.container}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
 
-      <View style={styles.formHeader}>
-        <Text style={styles.formTitolo}>Configuriamo insieme.</Text>
-        <Text style={styles.formSub}>Tutto rimane solo sul tuo telefono.</Text>
-      </View>
+        <View style={styles.formHeader}>
+          <Text style={styles.formTitolo}>Configuriamo insieme.</Text>
+          <Text style={styles.formSub}>Tutto rimane solo sul tuo telefono.</Text>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLbl}>IL TUO NOME — opzionale</Text>
-        <Text style={styles.cardDesc}>Appare solo sull'avatar. Nessuno lo vede.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Es. Marco, Soufiane..."
-          placeholderTextColor="#5a5f72"
-          value={nome}
-          onChangeText={setNome}
-        />
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardLbl}>IL TUO NOME — opzionale</Text>
+          <Text style={styles.cardDesc}>Appare solo sull'avatar. Nessuno lo vede.</Text>
+          <TextInput style={styles.input} placeholder="Es. Marco, Soufiane..." placeholderTextColor="#5a5f72" value={nome} onChangeText={setNome} returnKeyType="next" />
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
-        <Text style={styles.cardDesc}>Cosa ti ha fatto aprire questa app oggi?</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Es. per mia figlia, per me stesso..."
-          placeholderTextColor="#5a5f72"
-          value={perche}
-          onChangeText={setPerche}
-          multiline
-        />
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
+          <Text style={styles.cardDesc}>Cosa ti ha fatto aprire questa app oggi?</Text>
+          <TextInput style={styles.input} placeholder="Es. per mia figlia, per me stesso..." placeholderTextColor="#5a5f72" value={perche} onChangeText={setPerche} multiline />
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLbl}>QUANTO SPENDEVI AL GIORNO IN MEDIA</Text>
-        <Text style={styles.cardDesc}>Serve per mostrarti i soldi che stai risparmiando.</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Es. 30"
-          placeholderTextColor="#5a5f72"
-          value={spesa}
-          onChangeText={setSpesa}
-          keyboardType="numeric"
-        />
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardLbl}>QUANTO SPENDEVI AL GIORNO IN MEDIA</Text>
+          <Text style={styles.cardDesc}>Serve per mostrarti i soldi che stai risparmiando.</Text>
+          <TextInput style={styles.input} placeholder="Es. 30" placeholderTextColor="#5a5f72" value={spesa} onChangeText={setSpesa} keyboardType="numeric" returnKeyType="next" />
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLbl}>PERSONA DI FIDUCIA — opzionale</Text>
-        <Text style={styles.cardDesc}>Chi vuoi poter chiamare nei momenti difficili?</Text>
-        <TextInput
-          style={[styles.input, { marginBottom: 10 }]}
-          placeholder="Nome (es. Marco, Mamma...)"
-          placeholderTextColor="#5a5f72"
-          value={contattoNome}
-          onChangeText={setContattoNome}
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Numero di telefono"
-          placeholderTextColor="#5a5f72"
-          value={contattoNumero}
-          onChangeText={setContattoNumero}
-          keyboardType="phone-pad"
-        />
-      </View>
+        <View style={styles.card}>
+          <Text style={styles.cardLbl}>PERSONA DI FIDUCIA — opzionale</Text>
+          <Text style={styles.cardDesc}>Chi vuoi poter chiamare nei momenti difficili?</Text>
+          <TextInput style={[styles.input, { marginBottom: 10 }]} placeholder="Nome (es. Marco, Mamma...)" placeholderTextColor="#5a5f72" value={contattoNome} onChangeText={setContattoNome} returnKeyType="next" />
+          <TextInput style={styles.input} placeholder="Numero di telefono" placeholderTextColor="#5a5f72" value={contattoNumero} onChangeText={setContattoNumero} keyboardType="phone-pad" />
+        </View>
 
-      <View style={styles.disclaimerCard}>
-        <Text style={styles.disclaimerTitolo}>⚠️ Informazione importante</Text>
-        <Text style={styles.disclaimerTesto}>
-          Ancora Qui è uno strumento di supporto e non sostituisce il parere di un professionista della salute mentale.{'\n\n'}
-          Se sei in crisi chiama il SerD al numero gratuito 800 274 274.
-        </Text>
-        <View style={styles.legalLinks}>
-          <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
-            <Text style={styles.legalLink}>Privacy Policy</Text>
-          </TouchableOpacity>
-          <Text style={styles.legalSep}>·</Text>
-          <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}>
-            <Text style={styles.legalLink}>Termini di Utilizzo</Text>
+        <View style={styles.disclaimerCard}>
+          <Text style={styles.disclaimerTitolo}>⚠️ Informazione importante</Text>
+          <Text style={styles.disclaimerTesto}>
+            Ancora Qui è uno strumento di supporto e non sostituisce il parere di un professionista della salute mentale.{'\n\n'}
+            Se sei in crisi chiama il SerD al numero gratuito 800 274 274.
+          </Text>
+          <View style={styles.legalLinks}>
+            <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
+              <Text style={styles.legalLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalSep}>·</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/termini.html')}>
+              <Text style={styles.legalLink}>Termini di Utilizzo</Text>
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={styles.checkRow} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAccettato(!accettato); }}>
+            <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
+              {accettato && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={styles.checkLabel}>Ho letto e accetto Privacy Policy e Termini</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.checkRow}
-          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setAccettato(!accettato); }}
-        >
-          <View style={[styles.checkbox, accettato && styles.checkboxOn]}>
-            {accettato && <Text style={styles.checkmark}>✓</Text>}
-          </View>
-          <Text style={styles.checkLabel}>Ho letto e accetto Privacy Policy e Termini</Text>
+
+        <TouchableOpacity style={[styles.btn, (!perche || !spesa || !accettato) && styles.btnDisabled]} onPress={inizia}>
+          <Text style={styles.btnText}>Inizia →</Text>
         </TouchableOpacity>
-      </View>
 
-      <TouchableOpacity
-        style={[styles.btn, (!perche || !spesa || !accettato) && styles.btnDisabled]}
-        onPress={inizia}
-      >
-        <Text style={styles.btnText}>Inizia →</Text>
-      </TouchableOpacity>
-
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

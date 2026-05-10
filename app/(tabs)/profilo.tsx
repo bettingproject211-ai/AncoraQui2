@@ -1,16 +1,27 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Linking, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno' },
   { giorni: 3, emoji: '🔥', titolo: 'Tre giorni' },
   { giorni: 7, emoji: '⭐', titolo: 'Una settimana' },
   { giorni: 14, emoji: '🌙', titolo: 'Due settimane' },
+  { giorni: 21, emoji: '💫', titolo: 'Tre settimane' },
   { giorni: 30, emoji: '🏆', titolo: 'Un mese' },
   { giorni: 60, emoji: '💎', titolo: 'Due mesi' },
   { giorni: 100, emoji: '🚀', titolo: '100 giorni' },
+];
+
+const LO_SAPEVI = [
+  { emoji: '🧠', testo: 'Il cervello del giocatore reagisce al gioco esattamente come reagisce a una sostanza. Non è debolezza — è chimica.' },
+  { emoji: '🎰', testo: 'Le slot sono progettate per darti quasi-vincite. Il tuo cervello le percepisce come vittorie vere. Non sei tu il problema.' },
+  { emoji: '⏱️', testo: 'Bastano 90 secondi per superare un impulso. Se aspetti, passa. Il tuo cervello ti sta solo mentendo per un momento.' },
+  { emoji: '💪', testo: 'Ogni volta che resisti a un impulso, il tuo cervello si riconfigura. Stai letteralmente cambiando la tua biologia.' },
+  { emoji: '😴', testo: 'La stanchezza e la solitudine sono i trigger più comuni. Non sei debole — sei umano.' },
+  { emoji: '📊', testo: 'Il 95% delle persone che smettono ci ricade almeno una volta. La ricaduta non è fallimento — è parte del percorso.' },
+  { emoji: '🌱', testo: 'Ci vogliono circa 21 giorni per iniziare a cambiare un\'abitudine. Il tuo cervello sta lavorando anche quando non lo senti.' },
 ];
 
 export default function ProfiloScreen() {
@@ -22,12 +33,9 @@ export default function ProfiloScreen() {
   const [resistitiTotali, setResistitiTotali] = useState(0);
   const [editNome, setEditNome] = useState(false);
   const [nomeTemp, setNomeTemp] = useState('');
+  const [sapeviFatto, setSapeviFatto] = useState(0);
 
-  useFocusEffect(
-    useCallback(() => {
-      caricaDati();
-    }, [])
-  );
+  useFocusEffect(useCallback(() => { caricaDati(); }, []));
 
   const caricaDati = async () => {
     try {
@@ -51,6 +59,9 @@ export default function ProfiloScreen() {
         setImpulsiTotali(impulsi.length);
         setResistitiTotali(impulsi.filter((i: any) => i.resistito).length);
       }
+      // Fatto del giorno basato sul giorno dell'anno
+      const giornoAnno = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000);
+      setSapeviFatto(giornoAnno % LO_SAPEVI.length);
     } catch (e) {}
   };
 
@@ -60,26 +71,9 @@ export default function ProfiloScreen() {
     setEditNome(false);
   };
 
-  const resetApp = () => {
-    Alert.alert(
-      'Reset app',
-      'Vuoi resettare tutti i dati?',
-      [
-        { text: 'Annulla', style: 'cancel' },
-        {
-          text: 'Reset',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorageLib.clear();
-            router.replace('/(tabs)/onboarding' as any);
-          }
-        }
-      ]
-    );
-  };
-
   const badgeRaggunti = BADGES.filter(b => b.giorni <= giorni);
   const badgeMancanti = BADGES.filter(b => b.giorni > giorni);
+  const fatto = LO_SAPEVI[sapeviFatto];
 
   return (
     <ScrollView style={styles.container}>
@@ -87,7 +81,7 @@ export default function ProfiloScreen() {
       <View style={styles.header}>
         <View style={styles.avatarGrande}>
           <Text style={styles.avatarEmoji}>
-            {giorni >= 100 ? '🚀' : giorni >= 60 ? '💎' : giorni >= 30 ? '🏆' : giorni >= 7 ? '⭐' : '🌱'}
+            {giorni >= 100 ? '🚀' : giorni >= 60 ? '💎' : giorni >= 30 ? '🏆' : giorni >= 21 ? '💫' : giorni >= 7 ? '⭐' : '🌱'}
           </Text>
         </View>
         <TouchableOpacity onPress={() => { setNomeTemp(nome); setEditNome(true); }}>
@@ -118,6 +112,13 @@ export default function ProfiloScreen() {
       <View style={styles.percheCard}>
         <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
         <Text style={styles.percheText}>"{perche}"</Text>
+      </View>
+
+      {/* LO SAPEVI */}
+      <View style={styles.sapevCard}>
+        <Text style={styles.cardLbl}>LO SAPEVI? 💡</Text>
+        <Text style={styles.sapevEmoji}>{fatto?.emoji}</Text>
+        <Text style={styles.sapevTesto}>{fatto?.testo}</Text>
       </View>
 
       <View style={styles.card}>
@@ -151,7 +152,12 @@ export default function ProfiloScreen() {
       )}
 
       <View style={styles.legalCard}>
-        <Text style={styles.cardLbl}>INFORMAZIONI LEGALI</Text>
+        <Text style={styles.cardLbl}>SUPPORTO E INFORMAZIONI</Text>
+        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:800274274')}>
+          <Text style={styles.legalText}>SerD — 800 274 274</Text>
+          <Text style={styles.legalArrow}>📞</Text>
+        </TouchableOpacity>
+        <View style={styles.legalDivider} />
         <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('https://bettingproject211-ai.github.io/ancoraqui-legal/privacy-policy.html')}>
           <Text style={styles.legalText}>Privacy Policy</Text>
           <Text style={styles.legalArrow}>→</Text>
@@ -161,18 +167,9 @@ export default function ProfiloScreen() {
           <Text style={styles.legalText}>Termini di Utilizzo</Text>
           <Text style={styles.legalArrow}>→</Text>
         </TouchableOpacity>
-        <View style={styles.legalDivider} />
-        <TouchableOpacity style={styles.legalRow} onPress={() => Linking.openURL('tel:800274274')}>
-          <Text style={styles.legalText}>SerD — 800 274 274</Text>
-          <Text style={styles.legalArrow}>📞</Text>
-        </TouchableOpacity>
       </View>
 
-      <Text style={styles.version}>Ancora Qui v1.0.0</Text>
-
-      <TouchableOpacity style={styles.resetBtn} onPress={resetApp}>
-        <Text style={styles.resetText}>🔄 Reset per test</Text>
-      </TouchableOpacity>
+      <Text style={styles.version}>Ancora Qui v1.0.1</Text>
 
       <Modal visible={editNome} transparent animationType="slide">
         <View style={styles.modalBg}>
@@ -212,12 +209,15 @@ const styles = StyleSheet.create({
   giorni: { fontSize: 13, color: '#5a5f72' },
   statsRow: { flexDirection: 'row', marginHorizontal: 20, marginTop: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
   statItem: { flex: 1, alignItems: 'center' },
-  statNum: { fontSize: 22, fontWeight: '700', color: '#6aaa82', marginBottom: 4 },
+  statNum: { fontSize: 22, fontWeight: '700', color: '#6aaa82', marginBottom: 4, fontFamily: 'Lora_700Bold' },
   statLbl: { fontSize: 10, color: '#5a5f72' },
   statDivider: { width: 1, backgroundColor: '#181c2a', marginVertical: 4 },
   percheCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: 'rgba(201,150,90,0.05)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 16 },
   cardLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginBottom: 8 },
-  percheText: { fontSize: 14, fontStyle: 'italic', color: '#ddd8cf', lineHeight: 22 },
+  percheText: { fontSize: 14, fontStyle: 'italic', color: '#ddd8cf', lineHeight: 22, fontFamily: 'Lora_400Regular_Italic' },
+  sapevCard: { marginHorizontal: 20, marginTop: 14, backgroundColor: 'rgba(93,143,168,0.06)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.2)', borderRadius: 18, padding: 16 },
+  sapevEmoji: { fontSize: 32, marginBottom: 10 },
+  sapevTesto: { fontSize: 14, color: '#ddd8cf', lineHeight: 22 },
   card: { marginHorizontal: 20, marginTop: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
   badgeEmpty: { fontSize: 13, color: '#5a5f72', textAlign: 'center', paddingVertical: 8 },
   badgeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
@@ -230,9 +230,7 @@ const styles = StyleSheet.create({
   legalText: { fontSize: 13, color: '#ddd8cf' },
   legalArrow: { fontSize: 13, color: '#5a5f72' },
   legalDivider: { height: 1, backgroundColor: '#181c2a' },
-  version: { textAlign: 'center', fontSize: 11, color: '#5a5f72', marginTop: 20 },
-  resetBtn: { marginHorizontal: 20, marginTop: 8, marginBottom: 40, padding: 14, alignItems: 'center' },
-  resetText: { fontSize: 12, color: '#5a5f72' },
+  version: { textAlign: 'center', fontSize: 11, color: '#5a5f72', marginTop: 20, marginBottom: 40 },
   modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
   modalCard: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 6, textAlign: 'center' },

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { supabase } from '../../supabase';
 
 const CATEGORIE = [
@@ -56,11 +56,12 @@ export default function ForumScreen() {
   const [loadingReplies, setLoadingReplies] = useState(false);
   const [titoloNuovo, setTitoloNuovo] = useState('');
   const [testoNuovo, setTestoNuovo] = useState('');
-  const [categoriaNuova, setCategoriaNuova] = useState('generale');
+  const [categoriaNuova, setCategoriaNuova] = useState('primo_giorno');
   const [testoRisposta, setTestoRisposta] = useState('');
   const [invio, setInvio] = useState(false);
 
   useFocusEffect(useCallback(() => { caricaPosts(); }, []));
+  useEffect(() => { caricaPosts(); }, [categoriaSelezionata]);
 
   const caricaPosts = async () => {
     try {
@@ -73,8 +74,6 @@ export default function ForumScreen() {
     } catch (e) { setErrore(true); }
     finally { setLoading(false); setRefreshing(false); }
   };
-
-  useEffect(() => { caricaPosts(); }, [categoriaSelezionata]);
 
   const caricaReplies = async (postId: string) => {
     setLoadingReplies(true);
@@ -103,7 +102,7 @@ export default function ForumScreen() {
         categoria: categoriaNuova,
       });
       if (!error) {
-        setTitoloNuovo(''); setTestoNuovo(''); setCategoriaNuova('generale');
+        setTitoloNuovo(''); setTestoNuovo(''); setCategoriaNuova('primo_giorno');
         setNuovoPostModal(false);
         caricaPosts();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -140,118 +139,121 @@ export default function ForumScreen() {
     return `${Math.floor(ore / 24)}g fa`;
   };
 
-  const catLabel = CATEGORIE.find(c => c.value === categoriaSelezionata);
-
   return (
     <View style={styles.container}>
 
       {/* DETTAGLIO POST */}
       <Modal visible={!!postDettaglio} transparent animationType="slide">
-        <View style={styles.modalDettaglioBg}>
-          <View style={styles.modalDettaglio}>
-            <View style={styles.dettaglioHeader}>
-              <TouchableOpacity onPress={() => { setPostDettaglio(null); setReplies([]); }}>
-                <Text style={styles.dettaglioChiudi}>← Torna</Text>
-              </TouchableOpacity>
-              <View style={[styles.catBadge, { backgroundColor: 'rgba(201,150,90,0.1)' }]}>
-                <Text style={styles.catBadgeText}>{CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.emoji} {CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.label}</Text>
-              </View>
-            </View>
-            <ScrollView style={styles.dettaglioScroll}>
-              <View style={styles.dettaglioPost}>
-                <View style={styles.postTopRow}>
-                  <View style={styles.avatar}><Text style={styles.avEmoji}>{postDettaglio?.emoji}</Text></View>
-                  <View>
-                    <Text style={styles.postNome}>{postDettaglio?.nickname}</Text>
-                    <Text style={styles.postTempo}>{formatTempo(postDettaglio?.created_at || '')}</Text>
-                  </View>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalDettaglioBg}>
+            <View style={styles.modalDettaglio}>
+              <View style={styles.dettaglioHeader}>
+                <TouchableOpacity onPress={() => { setPostDettaglio(null); setReplies([]); }}>
+                  <Text style={styles.dettaglioChiudi}>← Torna</Text>
+                </TouchableOpacity>
+                <View style={styles.catBadge}>
+                  <Text style={styles.catBadgeText}>
+                    {CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.emoji} {CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.label}
+                  </Text>
                 </View>
-                <Text style={styles.dettaglioTitolo}>{postDettaglio?.titolo}</Text>
-                <Text style={styles.dettaglioTesto}>{postDettaglio?.testo}</Text>
               </View>
-
-              <Text style={styles.repliesLbl}>RISPOSTE — {replies.length}</Text>
-              {loadingReplies ? <SkeletonCard /> : replies.map(r => (
-                <View key={r.id} style={styles.replyCard}>
+              <ScrollView style={styles.dettaglioScroll} keyboardShouldPersistTaps="handled">
+                <View style={styles.dettaglioPost}>
                   <View style={styles.postTopRow}>
-                    <View style={styles.avatarSmall}><Text style={styles.avEmojiSmall}>{r.emoji}</Text></View>
+                    <View style={styles.avatar}><Text style={styles.avEmoji}>{postDettaglio?.emoji}</Text></View>
                     <View>
-                      <Text style={styles.postNome}>{r.nickname}</Text>
-                      <Text style={styles.postTempo}>{formatTempo(r.created_at)}</Text>
+                      <Text style={styles.postNome}>{postDettaglio?.nickname}</Text>
+                      <Text style={styles.postTempo}>{formatTempo(postDettaglio?.created_at || '')}</Text>
                     </View>
                   </View>
-                  <Text style={styles.replyTesto}>{r.testo}</Text>
+                  <Text style={styles.dettaglioTitolo}>{postDettaglio?.titolo}</Text>
+                  <Text style={styles.dettaglioTesto}>{postDettaglio?.testo}</Text>
                 </View>
-              ))}
-              <View style={{ height: 100 }} />
-            </ScrollView>
-
-            <View style={styles.rispostaBox}>
-              <TextInput
-                style={styles.rispostaInput}
-                placeholder="Scrivi una risposta..."
-                placeholderTextColor="#5a5f72"
-                value={testoRisposta}
-                onChangeText={setTestoRisposta}
-                multiline
-              />
-              <TouchableOpacity style={styles.rispostaBtn} onPress={inviaRisposta} disabled={invio}>
-                <Text style={styles.rispostaBtnText}>{invio ? '...' : '→'}</Text>
-              </TouchableOpacity>
+                <Text style={styles.repliesLbl}>RISPOSTE — {replies.length}</Text>
+                {loadingReplies ? <SkeletonCard /> : replies.map(r => (
+                  <View key={r.id} style={styles.replyCard}>
+                    <View style={styles.postTopRow}>
+                      <View style={styles.avatarSmall}><Text style={styles.avEmojiSmall}>{r.emoji}</Text></View>
+                      <View>
+                        <Text style={styles.postNome}>{r.nickname}</Text>
+                        <Text style={styles.postTempo}>{formatTempo(r.created_at)}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.replyTesto}>{r.testo}</Text>
+                  </View>
+                ))}
+                <View style={{ height: 100 }} />
+              </ScrollView>
+              <View style={styles.rispostaBox}>
+                <TextInput
+                  style={styles.rispostaInput}
+                  placeholder="Scrivi una risposta..."
+                  placeholderTextColor="#5a5f72"
+                  value={testoRisposta}
+                  onChangeText={setTestoRisposta}
+                  multiline
+                />
+                <TouchableOpacity style={styles.rispostaBtn} onPress={inviaRisposta} disabled={invio}>
+                  <Text style={styles.rispostaBtnText}>{invio ? '...' : '→'}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* NUOVO POST */}
       <Modal visible={nuovoPostModal} transparent animationType="slide">
-        <View style={styles.modalNuovoBg}>
-          <View style={styles.modalNuovo}>
-            <Text style={styles.modalNuovoTitolo}>Nuovo post</Text>
-            <Text style={styles.modalNuovoLbl}>CATEGORIA</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                {CATEGORIE.slice(1).map(c => (
-                  <TouchableOpacity
-                    key={c.value}
-                    style={[styles.catPill, categoriaNuova === c.value && styles.catPillOn]}
-                    onPress={() => setCategoriaNuova(c.value)}
-                  >
-                    <Text style={styles.catPillText}>{c.emoji} {c.label}</Text>
-                  </TouchableOpacity>
-                ))}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalNuovoBg}>
+            <View style={styles.modalNuovo}>
+              <Text style={styles.modalNuovoTitolo}>Nuovo post</Text>
+              <Text style={styles.modalNuovoLbl}>CATEGORIA</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {CATEGORIE.slice(1).map(c => (
+                    <TouchableOpacity
+                      key={c.value}
+                      style={[styles.catPill, categoriaNuova === c.value && styles.catPillOn]}
+                      onPress={() => setCategoriaNuova(c.value)}
+                    >
+                      <Text style={styles.catPillText}>{c.emoji} {c.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+              <Text style={styles.modalNuovoLbl}>TITOLO</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Un titolo breve..."
+                placeholderTextColor="#5a5f72"
+                value={titoloNuovo}
+                onChangeText={t => setTitoloNuovo(t.slice(0, 100))}
+                returnKeyType="next"
+              />
+              <Text style={styles.modalNuovoLbl}>MESSAGGIO</Text>
+              <TextInput
+                style={[styles.modalInput, { minHeight: 80 }]}
+                placeholder="Scrivi qui..."
+                placeholderTextColor="#5a5f72"
+                value={testoNuovo}
+                onChangeText={t => setTestoNuovo(t.slice(0, 500))}
+                multiline
+              />
+              <View style={styles.modalNuovoBtns}>
+                <TouchableOpacity style={styles.modalNuovoCancel} onPress={() => setNuovoPostModal(false)}>
+                  <Text style={styles.modalNuovoCancelText}>Annulla</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalNuovoSave, (!titoloNuovo || !testoNuovo) && { opacity: 0.4 }]}
+                  onPress={inviaPost} disabled={invio}
+                >
+                  <Text style={styles.modalNuovoSaveText}>{invio ? '...' : 'Pubblica'}</Text>
+                </TouchableOpacity>
               </View>
-            </ScrollView>
-            <Text style={styles.modalNuovoLbl}>TITOLO</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Un titolo breve..."
-              placeholderTextColor="#5a5f72"
-              value={titoloNuovo}
-              onChangeText={t => setTitoloNuovo(t.slice(0, 100))}
-            />
-            <Text style={styles.modalNuovoLbl}>MESSAGGIO</Text>
-            <TextInput
-              style={[styles.modalInput, { minHeight: 80 }]}
-              placeholder="Scrivi qui..."
-              placeholderTextColor="#5a5f72"
-              value={testoNuovo}
-              onChangeText={t => setTestoNuovo(t.slice(0, 500))}
-              multiline
-            />
-            <View style={styles.modalNuovoBtns}>
-              <TouchableOpacity style={styles.modalNuovoCancel} onPress={() => setNuovoPostModal(false)}>
-                <Text style={styles.modalNuovoCancelText}>Annulla</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalNuovoSave, (!titoloNuovo || !testoNuovo) && { opacity: 0.4 }]}
-                onPress={inviaPost} disabled={invio}
-              >
-                <Text style={styles.modalNuovoSaveText}>{invio ? '...' : 'Pubblica'}</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* LISTA POST */}
