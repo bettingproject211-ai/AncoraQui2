@@ -1,231 +1,360 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Animated, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, Vibration, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  Linking,
+  StyleSheet, Text,
+  TouchableOpacity,
+  View
+} from 'react-native';
 
-const FASI = [
-  { testo: 'Inspira...', durata: 4000, colore: '#5d8fa8' },
-  { testo: 'Trattieni...', durata: 4000, colore: '#c9965a' },
-  { testo: 'Espira lentamente...', durata: 6000, colore: '#6aaa82' },
+const FASI_RESPIRO = [
+  { label: 'Inspira', durata: 4000, colore: '#10b981', scala: 1.3 },
+  { label: 'Tieni', durata: 2000, colore: '#d4a853', scala: 1.3 },
+  { label: 'Espira', durata: 6000, colore: '#3b82f6', scala: 1.0 },
 ];
 
 export default function SosScreen() {
   const [perche, setPerche] = useState('');
-  const [contatto, setContatto] = useState('');
-  const [nomeContatto, setNomeContatto] = useState('');
-  const [respirandoAttivo, setRespirandoAttivo] = useState(false);
+  const [contattoNome, setContattoNome] = useState('');
+  const [contattoNumero, setContattoNumero] = useState('');
   const [faseCorrente, setFaseCorrente] = useState(0);
-  const [testoFase, setTestoFase] = useState('Tocca per iniziare');
-  const [coloreAnello, setColoreAnello] = useState('#5d8fa8');
+  const [respiroAttivo, setRespiroAttivo] = useState(false);
+  const [secondiTimer, setSecondiTimer] = useState(15 * 60);
+  const [timerAttivo, setTimerAttivo] = useState(false);
+  const [timerFinito, setTimerFinito] = useState(false);
 
-  const scalaAnello = useRef(new Animated.Value(1)).current;
-  const opacitaAnello = useRef(new Animated.Value(0.6)).current;
-  const animazioneRef = useRef<any>(null);
-  const faseRef = useRef(0);
-  const attivoRef = useRef(false);
+  const animaScala = useRef(new Animated.Value(1)).current;
+  const animaOpacity = useRef(new Animated.Value(0)).current;
+  const animaTimer = useRef(new Animated.Value(0)).current;
+  const animaPulse = useRef(new Animated.Value(1)).current;
+  const intervalloRef = useRef<any>(null);
+  const respiroRef = useRef<any>(null);
 
-  useFocusEffect(
-    useCallback(() => {
-      caricaDati();
-      return () => {
-        fermaRespiro();
-      };
-    }, [])
-  );
+  useFocusEffect(useCallback(() => {
+    caricaDati();
+    animaOpacity.setValue(0);
+    Animated.timing(animaOpacity, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    avviaPulse();
+    return () => {
+      if (intervalloRef.current) clearInterval(intervalloRef.current);
+      if (respiroRef.current) respiroRef.current.stop();
+    };
+  }, []));
+
+  const avviaPulse = () => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(animaPulse, { toValue: 1.06, duration: 1000, useNativeDriver: true }),
+        Animated.timing(animaPulse, { toValue: 1, duration: 1000, useNativeDriver: true }),
+        Animated.delay(1500),
+      ])
+    ).start();
+  };
 
   const caricaDati = async () => {
     try {
       const p = await AsyncStorageLib.getItem('perche');
-      const c = await AsyncStorageLib.getItem('contattoNumero');
-      const n = await AsyncStorageLib.getItem('contattoNome');
+      const cn = await AsyncStorageLib.getItem('contattoNome');
+      const cnum = await AsyncStorageLib.getItem('contattoNumero');
       setPerche(p || '');
-      setContatto(c || '');
-      setNomeContatto(n || '');
+      setContattoNome(cn || '');
+      setContattoNumero(cnum || '');
     } catch (e) {}
   };
 
-  const fermaRespiro = () => {
-    attivoRef.current = false;
-    setRespirandoAttivo(false);
-    setFaseCorrente(0);
-    setTestoFase('Tocca per iniziare');
-    setColoreAnello('#5d8fa8');
-    if (animazioneRef.current) {
-      animazioneRef.current.stop();
-    }
-    scalaAnello.setValue(1);
-    opacitaAnello.setValue(0.6);
+  // Timer 15 minuti
+  const avviaTimer = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setTimerAttivo(true);
+    setTimerFinito(false);
+    setSecondiTimer(15 * 60);
+    animaTimer.setValue(0);
+    Animated.timing(animaTimer, {
+      toValue: 1, duration: 15 * 60 * 1000, useNativeDriver: false, easing: Easing.linear,
+    }).start();
+    intervalloRef.current = setInterval(() => {
+      setSecondiTimer(prev => {
+        if (prev <= 1) {
+          clearInterval(intervalloRef.current);
+          setTimerAttivo(false);
+          setTimerFinito(true);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
 
-  const eseguiFase = (indice: number) => {
-    if (!attivoRef.current) return;
-    const fase = FASI[indice % FASI.length];
-    faseRef.current = indice % FASI.length;
-    setFaseCorrente(indice % FASI.length);
-    setTestoFase(fase.testo);
-    setColoreAnello(fase.colore);
+  const resetTimer = () => {
+    if (intervalloRef.current) clearInterval(intervalloRef.current);
+    animaTimer.stopAnimation();
+    setTimerAttivo(false);
+    setTimerFinito(false);
+    setSecondiTimer(15 * 60);
+    animaTimer.setValue(0);
+  };
 
-    Vibration.vibrate(100);
+  const formatTimer = (secondi: number) => {
+    const m = Math.floor(secondi / 60);
+    const s = secondi % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
-    const isInspira = indice % 3 === 0;
-    const isEspira = indice % 3 === 2;
+  // Respiro
+  const avviaRespiro = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setRespiroAttivo(true);
+    animaFase(0);
+  };
 
-    animazioneRef.current = Animated.parallel([
-      Animated.timing(scalaAnello, {
-        toValue: isInspira ? 1.3 : isEspira ? 0.85 : 1.1,
-        duration: fase.durata,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacitaAnello, {
-        toValue: isInspira ? 1 : isEspira ? 0.5 : 0.8,
-        duration: fase.durata,
-        useNativeDriver: true,
-      }),
-    ]);
-
-    animazioneRef.current.start(({ finished }: { finished: boolean }) => {
-      if (finished && attivoRef.current) {
-        eseguiFase(indice + 1);
+  const animaFase = (indice: number) => {
+    const fase = FASI_RESPIRO[indice];
+    Animated.timing(animaScala, {
+      toValue: fase.scala, duration: fase.durata, useNativeDriver: true, easing: Easing.inOut(Easing.ease),
+    }).start(({ finished }) => {
+      if (finished) {
+        const prossimo = (indice + 1) % FASI_RESPIRO.length;
+        setFaseCorrente(prossimo);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        animaFase(prossimo);
       }
     });
   };
 
-  const toggleRespiro = () => {
-    if (respirandoAttivo) {
-      fermaRespiro();
-    } else {
-      attivoRef.current = true;
-      setRespirandoAttivo(true);
-      setTestoFase('Inspira...');
-      eseguiFase(0);
-    }
+  const fermaRespiro = () => {
+    animaScala.stopAnimation();
+    Animated.timing(animaScala, { toValue: 1, duration: 300, useNativeDriver: true }).start();
+    setRespiroAttivo(false);
+    setFaseCorrente(0);
   };
 
-  const chiamaContatto = () => {
-    if (contatto) Linking.openURL(`tel:${contatto}`);
-  };
+  const faseAttuale = FASI_RESPIRO[faseCorrente];
+  const timerCirc = 2 * Math.PI * 54;
+  const timerOffset = animaTimer.interpolate({
+    inputRange: [0, 1], outputRange: [timerCirc, 0],
+  });
 
   return (
-    <ScrollView style={styles.container}>
-
+    <Animated.ScrollView
+      style={[styles.container, { opacity: animaOpacity }]}
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={{ paddingBottom: 60 }}
+    >
       {/* HEADER */}
       <View style={styles.header}>
-        <Text style={styles.momento}>MOMENTO DIFFICILE</Text>
-        <Text style={styles.titolo}>Sei ancora qui.{'\n'}Questo è tutto.</Text>
-        <Text style={styles.sub}>Non devi fare niente adesso.{'\n'}Solo restare qui un momento.</Text>
+        <Text style={styles.headerSub}>sei al sicuro</Text>
+        <Text style={styles.headerTitolo}>Ancora Qui</Text>
       </View>
 
-      {/* PERCHÉ — subito visibile senza scrollare */}
-      <View style={styles.perche}>
-        <Text style={styles.percheLbl}>IL TUO PERCHÉ</Text>
-        <Text style={styles.percheVal}>"{perche}"</Text>
-      </View>
-
-      {/* CERCHIO RESPIRO INTERATTIVO */}
-      <View style={styles.respiroContainer}>
-        <Text style={styles.respiroTitolo}>
-          {respirandoAttivo ? 'Respira con me' : 'Esercizio di respiro'}
-        </Text>
-
-        <TouchableOpacity onPress={toggleRespiro} activeOpacity={0.9}>
-          <View style={styles.ringWrapper}>
-            {/* Anello esterno fisso */}
-            <View style={[styles.ringEsterno, { borderColor: coloreAnello + '30' }]} />
-            {/* Anello animato */}
-            <Animated.View style={[
-              styles.ringAnimato,
-              {
-                borderColor: coloreAnello,
-                transform: [{ scale: scalaAnello }],
-                opacity: opacitaAnello,
-              }
-            ]}>
-              <Text style={styles.ringEmoji}>🌬️</Text>
-            </Animated.View>
-          </View>
-        </TouchableOpacity>
-
-        <Text style={[styles.faseTesto, { color: coloreAnello }]}>{testoFase}</Text>
-
-        {respirandoAttivo && (
-          <View style={styles.fasiIndicatori}>
-            {FASI.map((f, i) => (
-              <View
-                key={i}
-                style={[
-                  styles.fasiDot,
-                  faseCorrente === i && { backgroundColor: coloreAnello }
-                ]}
-              />
-            ))}
-          </View>
-        )}
-
-        <Text style={styles.respiroSub}>
-          {respirandoAttivo ? 'Tocca per fermare' : '4 sec inspira · 4 trattieni · 6 espira'}
-        </Text>
-      </View>
-
-      {/* PRESENZA */}
-      <View style={styles.presenza}>
-        <Text style={styles.presenzaText}>
-          <Text style={styles.presenzaBold}>Non devi essere forte adesso.{'\n'}</Text>
-          Solo non aprire quell'altra app per i prossimi 10 minuti.
-        </Text>
-      </View>
-
-      {/* CONTATTO */}
-      {contatto ? (
-        <TouchableOpacity style={styles.contattoBtn} onPress={chiamaContatto}>
-          <Text style={styles.contattoIcon}>💙</Text>
-          <View>
-            <Text style={styles.contattoLbl}>CHIAMA LA TUA PERSONA DI FIDUCIA</Text>
-            <Text style={styles.contattoNome}>{nomeContatto || 'Il tuo contatto'}</Text>
-          </View>
-        </TouchableOpacity>
+      {/* PERCHÉ — sempre visibile subito */}
+      {perche ? (
+        <View style={styles.percheCard}>
+          <Text style={styles.percheLbl}>RICORDA PERCHÉ SEI QUI</Text>
+          <Text style={styles.percheVal}>"{perche}"</Text>
+          <Text style={styles.percheSub}>Questo è più forte di qualsiasi impulso.</Text>
+        </View>
       ) : null}
 
-      {/* SERD */}
-      <TouchableOpacity style={styles.serd} onPress={() => Linking.openURL('tel:800274274')}>
-        <Text style={styles.serdIcon}>📞</Text>
-        <View>
-          <Text style={styles.serdLbl}>PARLA CON QUALCUNO ORA</Text>
-          <Text style={styles.serdNum}>800 274 274 — SerD</Text>
-        </View>
-      </TouchableOpacity>
+      {/* TIMER 15 MINUTI */}
+      <View style={styles.timerSection}>
+        <Text style={styles.sectionLbl}>L'IMPULSO PASSA</Text>
+        <Text style={styles.timerDesc}>
+          Aspetta 15 minuti. La ricerca dimostra che{'\n'}l'impulso si riduce da solo. Aspetta e basta.
+        </Text>
 
-    </ScrollView>
+        <View style={styles.timerWrapper}>
+          <Animated.View style={[styles.timerRing]}>
+            <Text style={[
+              styles.timerNum,
+              timerFinito && { color: '#10b981' }
+            ]}>
+              {timerFinito ? '✓' : formatTimer(secondiTimer)}
+            </Text>
+            {!timerFinito && (
+              <Text style={styles.timerLabel}>
+                {timerAttivo ? 'aspetta...' : '15 minuti'}
+              </Text>
+            )}
+            {timerFinito && (
+              <Text style={styles.timerLabel}>ce l'hai fatta</Text>
+            )}
+          </Animated.View>
+        </View>
+
+        {!timerAttivo && !timerFinito ? (
+          <TouchableOpacity style={styles.timerBtn} onPress={avviaTimer} activeOpacity={0.8}>
+            <Text style={styles.timerBtnText}>Avvia il timer</Text>
+          </TouchableOpacity>
+        ) : timerAttivo ? (
+          <TouchableOpacity style={styles.timerBtnSecondario} onPress={resetTimer} activeOpacity={0.8}>
+            <Text style={styles.timerBtnSecondarioText}>Annulla</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.timerFintoCard}>
+            <Text style={styles.timerFintoTesto}>
+              Hai aspettato. L'impulso è passato.{'\n'}Sei ancora qui. 💙
+            </Text>
+            <TouchableOpacity onPress={resetTimer}>
+              <Text style={styles.timerReset}>Ricomincia</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* RESPIRO */}
+      <View style={styles.respiroSection}>
+        <Text style={styles.sectionLbl}>ESERCIZIO DI RESPIRO</Text>
+        <Text style={styles.respiroDesc}>
+          4 secondi inspira · 2 tieni · 6 espira{'\n'}
+          Attiva il sistema nervoso parasimpatico.
+        </Text>
+
+        <View style={styles.respiroWrapper}>
+          <Animated.View style={[
+            styles.respiroCerchio,
+            {
+              transform: [{ scale: animaScala }],
+              backgroundColor: respiroAttivo ? faseAttuale.colore + '18' : 'rgba(255,255,255,0.03)',
+              borderColor: respiroAttivo ? faseAttuale.colore + '50' : '#1a2030',
+            }
+          ]}>
+            <Text style={[styles.respiroLabel, respiroAttivo && { color: faseAttuale.colore }]}>
+              {respiroAttivo ? faseAttuale.label : '●'}
+            </Text>
+          </Animated.View>
+        </View>
+
+        {!respiroAttivo ? (
+          <TouchableOpacity style={styles.respiroBtn} onPress={avviaRespiro} activeOpacity={0.8}>
+            <Text style={styles.respiroBtnText}>Inizia a respirare</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={styles.respiroBtnStop} onPress={fermaRespiro} activeOpacity={0.8}>
+            <Text style={styles.respiroBtnStopText}>Ferma</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* CONTATTI EMERGENZA */}
+      <View style={styles.contattiSection}>
+        <Text style={styles.sectionLbl}>CHIAMA QUALCUNO</Text>
+
+        {contattoNumero ? (
+          <TouchableOpacity
+            style={styles.contattoCard}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); Linking.openURL(`tel:${contattoNumero}`); }}
+            activeOpacity={0.8}
+          >
+            <View style={styles.contattoIcon}>
+              <Text style={styles.contattoIconText}>💙</Text>
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.contattoNome}>{contattoNome || 'La tua persona di fiducia'}</Text>
+              <Text style={styles.contattoNum}>{contattoNumero}</Text>
+            </View>
+            <Text style={styles.contattoChiama}>Chiama →</Text>
+          </TouchableOpacity>
+        ) : null}
+
+        <TouchableOpacity
+          style={styles.contattoCardVerde}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); Linking.openURL('tel:800274274'); }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.contattoIcon}>
+            <Text style={styles.contattoIconText}>📞</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.contattoNome}>SerD — Numero Verde</Text>
+            <Text style={styles.contattoNum}>800 274 274</Text>
+          </View>
+          <Text style={styles.contattoChiamaVerde}>Chiama →</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.contattoCardRosso}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); Linking.openURL('tel:112'); }}
+          activeOpacity={0.8}
+        >
+          <View style={styles.contattoIcon}>
+            <Text style={styles.contattoIconText}>🚨</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.contattoNome}>Emergenza</Text>
+            <Text style={styles.contattoNum}>112</Text>
+          </View>
+          <Text style={styles.contattoChiamaRosso}>Chiama →</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* MESSAGGIO FINALE */}
+      <View style={styles.messaggioFinale}>
+        <Text style={styles.messaggioTesto}>
+          Non sei solo.{'\n'}
+          Milioni di persone stanno attraversando{'\n'}
+          la stessa cosa in questo momento.{'\n\n'}
+          Sei ancora qui. È tutto quello che conta.
+        </Text>
+      </View>
+
+    </Animated.ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#06080f' },
-  header: { padding: 28, paddingTop: 60, borderBottomWidth: 1, borderBottomColor: '#181c2a', backgroundColor: 'rgba(184,92,92,0.07)' },
-  momento: { fontSize: 10, color: '#b85c5c', letterSpacing: 2, marginBottom: 10 },
-  titolo: { fontSize: 26, fontWeight: '700', color: '#ddd8cf', lineHeight: 32, marginBottom: 10 },
-  sub: { fontSize: 13, color: '#5a5f72', lineHeight: 22 },
-  perche: { marginHorizontal: 20, marginTop: 20, backgroundColor: 'rgba(201,150,90,0.07)', borderWidth: 1, borderColor: 'rgba(201,150,90,0.14)', borderRadius: 18, padding: 16, alignItems: 'center' },
-  percheLbl: { fontSize: 9, color: '#c9965a', letterSpacing: 2, marginBottom: 8 },
-  percheVal: { fontSize: 16, fontStyle: 'italic', color: '#ddd8cf', textAlign: 'center', lineHeight: 24 },
-  respiroContainer: { marginHorizontal: 20, marginTop: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 24, padding: 24, alignItems: 'center' },
-  respiroTitolo: { fontSize: 11, color: '#5a5f72', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 20 },
-  ringWrapper: { width: 140, height: 140, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
-  ringEsterno: { position: 'absolute', width: 140, height: 140, borderRadius: 70, borderWidth: 1 },
-  ringAnimato: { width: 100, height: 100, borderRadius: 50, borderWidth: 2, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(93,143,168,0.05)' },
-  ringEmoji: { fontSize: 32 },
-  faseTesto: { fontSize: 18, fontWeight: '600', marginBottom: 12, letterSpacing: 0.5 },
-  fasiIndicatori: { flexDirection: 'row', gap: 8, marginBottom: 8 },
-  fasiDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#1e2336' },
-  respiroSub: { fontSize: 11, color: '#5a5f72', textAlign: 'center' },
-  presenza: { marginHorizontal: 20, marginTop: 14, marginBottom: 0, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
-  presenzaText: { fontSize: 13, color: '#5a5f72', lineHeight: 22, textAlign: 'center', fontStyle: 'italic' },
-  presenzaBold: { color: '#a8a29a', fontStyle: 'normal', fontWeight: '500' },
-  contattoBtn: { marginHorizontal: 20, marginTop: 14, backgroundColor: 'rgba(93,143,168,0.08)', borderWidth: 1, borderColor: 'rgba(93,143,168,0.25)', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  contattoIcon: { fontSize: 24 },
-  contattoLbl: { fontSize: 9, color: '#5d8fa8', letterSpacing: 1, marginBottom: 4 },
-  contattoNome: { fontSize: 16, fontWeight: '600', color: '#ddd8cf' },
-  serd: { marginHorizontal: 20, marginTop: 14, marginBottom: 40, backgroundColor: 'rgba(184,92,92,0.08)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.25)', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  serdIcon: { fontSize: 24 },
-  serdLbl: { fontSize: 9, color: '#b85c5c', letterSpacing: 1, marginBottom: 4 },
-  serdNum: { fontSize: 16, fontWeight: '600', color: '#ddd8cf' },
+  container: { flex: 1, backgroundColor: '#080b12' },
+
+  header: { paddingHorizontal: 24, paddingTop: 56, paddingBottom: 20 },
+  headerSub: { fontSize: 10, color: '#4b5563', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 3 },
+  headerTitolo: { fontSize: 26, fontWeight: '700', color: '#d4a853', letterSpacing: 1 },
+
+  percheCard: { marginHorizontal: 20, marginBottom: 20, backgroundColor: 'rgba(212,168,83,0.06)', borderWidth: 1, borderColor: 'rgba(212,168,83,0.15)', borderRadius: 20, padding: 18 },
+  percheLbl: { fontSize: 9, color: '#d4a853', letterSpacing: 2.5, marginBottom: 10, textTransform: 'uppercase' },
+  percheVal: { fontSize: 18, color: '#f9fafb', fontFamily: 'Lora_400Regular_Italic', lineHeight: 28, marginBottom: 8 },
+  percheSub: { fontSize: 12, color: '#6b7280', fontStyle: 'italic' },
+
+  timerSection: { marginHorizontal: 20, marginBottom: 16, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 20, padding: 20, alignItems: 'center' },
+  sectionLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 2.5, marginBottom: 8, textTransform: 'uppercase', alignSelf: 'flex-start' },
+  timerDesc: { fontSize: 13, color: '#6b7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  timerWrapper: { marginBottom: 20 },
+  timerRing: { width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(16,185,129,0.05)', borderWidth: 2, borderColor: 'rgba(16,185,129,0.2)', alignItems: 'center', justifyContent: 'center' },
+  timerNum: { fontSize: 36, fontWeight: '700', color: '#f9fafb', fontFamily: 'Lora_700Bold' },
+  timerLabel: { fontSize: 11, color: '#6b7280', marginTop: 4, letterSpacing: 0.5 },
+  timerBtn: { backgroundColor: '#10b981', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, width: '100%', alignItems: 'center' },
+  timerBtnText: { color: '#080b12', fontSize: 15, fontWeight: '700' },
+  timerBtnSecondario: { borderWidth: 1, borderColor: '#1a2030', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32, width: '100%', alignItems: 'center' },
+  timerBtnSecondarioText: { color: '#6b7280', fontSize: 14 },
+  timerFintoCard: { backgroundColor: 'rgba(16,185,129,0.05)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.15)', borderRadius: 14, padding: 16, width: '100%', alignItems: 'center' },
+  timerFintoTesto: { fontSize: 14, color: '#10b981', textAlign: 'center', lineHeight: 22, marginBottom: 10 },
+  timerReset: { fontSize: 12, color: '#4b5563', textDecorationLine: 'underline' },
+
+  respiroSection: { marginHorizontal: 20, marginBottom: 16, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 20, padding: 20, alignItems: 'center' },
+  respiroDesc: { fontSize: 13, color: '#6b7280', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
+  respiroWrapper: { marginBottom: 20 },
+  respiroCerchio: { width: 130, height: 130, borderRadius: 65, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  respiroLabel: { fontSize: 16, fontWeight: '600', color: '#6b7280', letterSpacing: 0.5 },
+  respiroBtn: { backgroundColor: '#3b82f6', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32, width: '100%', alignItems: 'center' },
+  respiroBtnText: { color: '#ffffff', fontSize: 15, fontWeight: '700' },
+  respiroBtnStop: { borderWidth: 1, borderColor: '#1a2030', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 32, width: '100%', alignItems: 'center' },
+  respiroBtnStopText: { color: '#6b7280', fontSize: 14 },
+
+  contattiSection: { marginHorizontal: 20, marginBottom: 16 },
+  contattoCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 16, padding: 16, marginBottom: 10 },
+  contattoCardVerde: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(16,185,129,0.05)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.15)', borderRadius: 16, padding: 16, marginBottom: 10 },
+  contattoCardRosso: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'rgba(239,68,68,0.05)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.15)', borderRadius: 16, padding: 16 },
+  contattoIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
+  contattoIconText: { fontSize: 18 },
+  contattoNome: { fontSize: 14, fontWeight: '600', color: '#f9fafb', marginBottom: 2 },
+  contattoNum: { fontSize: 12, color: '#6b7280' },
+  contattoChiama: { fontSize: 12, color: '#d4a853', fontWeight: '600' },
+  contattoChiamaVerde: { fontSize: 12, color: '#10b981', fontWeight: '600' },
+  contattoChiamaRosso: { fontSize: 12, color: '#ef4444', fontWeight: '600' },
+
+  messaggioFinale: { marginHorizontal: 20, marginTop: 4, padding: 20, alignItems: 'center' },
+  messaggioTesto: { fontSize: 14, color: '#4b5563', textAlign: 'center', lineHeight: 24, fontStyle: 'italic' },
 });

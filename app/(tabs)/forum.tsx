@@ -2,7 +2,20 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Animated, KeyboardAvoidingView, Linking, Modal, Platform, RefreshControl, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  Animated, KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet, Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 import { supabase } from '../../supabase';
 
 const CATEGORIE = [
@@ -28,16 +41,12 @@ const PAROLE_CRISI = [
   'mi faccio del male', 'mi taglio', 'non voglio più vivere',
 ];
 
-const contieneCrisi = (testo: string): boolean => {
-  const lower = testo.toLowerCase();
-  return PAROLE_CRISI.some(p => lower.includes(p));
-};
+const contieneCrisi = (testo: string) => PAROLE_CRISI.some(p => testo.toLowerCase().includes(p));
 
 const filtroParole = (testo: string): string => {
   let result = testo;
   PAROLE_VIETATE.forEach(p => {
-    const regex = new RegExp(p, 'gi');
-    result = result.replace(regex, '*'.repeat(p.length));
+    result = result.replace(new RegExp(p, 'gi'), '*'.repeat(p.length));
   });
   return result;
 };
@@ -133,12 +142,7 @@ export default function ForumScreen() {
   const caricaPosts = async () => {
     try {
       setErrore(false);
-      let query = supabase
-        .from('forum_posts')
-        .select('*')
-        .eq('reported', false)
-        .order('created_at', { ascending: false })
-        .limit(30);
+      let query = supabase.from('forum_posts').select('*').eq('reported', false).order('created_at', { ascending: false }).limit(30);
       if (categoriaSelezionata !== 'tutti') query = query.eq('categoria', categoriaSelezionata);
       const { data, error } = await query;
       if (error) throw error;
@@ -150,12 +154,7 @@ export default function ForumScreen() {
   const caricaReplies = async (postId: string) => {
     setLoadingReplies(true);
     try {
-      const { data } = await supabase
-        .from('forum_replies')
-        .select('*')
-        .eq('post_id', postId)
-        .eq('reported', false)
-        .order('created_at', { ascending: true });
+      const { data } = await supabase.from('forum_replies').select('*').eq('post_id', postId).eq('reported', false).order('created_at', { ascending: true });
       if (data) setReplies(data);
     } catch (e) {}
     finally { setLoadingReplies(false); }
@@ -171,42 +170,27 @@ export default function ForumScreen() {
   const mostraAlertCrisi = () => {
     const buttons: any[] = [];
     if (contattoNumero) {
-      buttons.push({
-        text: `💙 Chiama ${contattoNome || 'la tua persona'}`,
-        onPress: () => Linking.openURL(`tel:${contattoNumero}`),
-      });
+      buttons.push({ text: `💙 ${contattoNome || 'Persona di fiducia'}`, onPress: () => Linking.openURL(`tel:${contattoNumero}`) });
     }
-    buttons.push({ text: '📞 SerD — 800 274 274', onPress: () => Linking.openURL('tel:800274274') });
-    buttons.push({ text: '🆘 Chiama il 112', onPress: () => Linking.openURL('tel:112'), style: 'destructive' });
+    buttons.push({ text: '📞 SerD 800 274 274', onPress: () => Linking.openURL('tel:800274274') });
+    buttons.push({ text: '🆘 112', onPress: () => Linking.openURL('tel:112'), style: 'destructive' });
     buttons.push({ text: 'Continua a scrivere', style: 'cancel' });
-    Alert.alert(
-      '💙 Sei al sicuro?',
-      'Sembra che tu stia attraversando un momento molto difficile.\n\nNon sei solo/a. Vuoi parlare con qualcuno adesso?',
-      buttons
-    );
+    Alert.alert('💙 Sei al sicuro?', 'Sembra che tu stia attraversando un momento molto difficile.\n\nNon sei solo/a. Vuoi parlare con qualcuno?', buttons);
   };
 
   const inviaPost = async () => {
     if (!titoloNuovo.trim() || !testoNuovo.trim() || !myNickname) return;
-    if (contieneCrisi(testoNuovo) || contieneCrisi(titoloNuovo)) {
-      mostraAlertCrisi();
-      return;
-    }
+    if (contieneCrisi(testoNuovo) || contieneCrisi(titoloNuovo)) { mostraAlertCrisi(); return; }
     setInvio(true);
     try {
-      const testoFiltrato = filtroParole(testoNuovo.trim().slice(0, 500));
-      const titoloFiltrato = filtroParole(titoloNuovo.trim().slice(0, 100));
       const { error } = await supabase.from('forum_posts').insert({
-        titolo: titoloFiltrato,
-        testo: testoFiltrato,
-        emoji: myNickname.emoji,
-        nickname: myNickname.nome,
-        categoria: categoriaNuova,
+        titolo: filtroParole(titoloNuovo.trim().slice(0, 100)),
+        testo: filtroParole(testoNuovo.trim().slice(0, 500)),
+        emoji: myNickname.emoji, nickname: myNickname.nome, categoria: categoriaNuova,
       });
       if (!error) {
         setTitoloNuovo(''); setTestoNuovo(''); setCategoriaNuova('primo_giorno');
-        setNuovoPostModal(false);
-        caricaPosts();
+        setNuovoPostModal(false); caricaPosts();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
     } catch (e) {}
@@ -215,37 +199,23 @@ export default function ForumScreen() {
 
   const inviaRisposta = async () => {
     if (!testoRisposta.trim() || !postDettaglio || !myNickname) return;
-    if (contieneCrisi(testoRisposta)) {
-      mostraAlertCrisi();
-      return;
-    }
+    if (contieneCrisi(testoRisposta)) { mostraAlertCrisi(); return; }
     setInvio(true);
     try {
-      const testoCompleto = rispostaMenzione ? `@${rispostaMenzione} ${testoRisposta.trim()}` : testoRisposta.trim();
-      const testoFiltrato = filtroParole(testoCompleto.slice(0, 500));
+      const testo = rispostaMenzione ? `@${rispostaMenzione} ${testoRisposta.trim()}` : testoRisposta.trim();
       const { error } = await supabase.from('forum_replies').insert({
-        post_id: postDettaglio.id,
-        testo: testoFiltrato,
-        emoji: myNickname.emoji,
-        nickname: myNickname.nome,
+        post_id: postDettaglio.id, testo: filtroParole(testo.slice(0, 500)),
+        emoji: myNickname.emoji, nickname: myNickname.nome,
       });
       if (!error) {
-        setTestoRisposta('');
-        setRispostaMenzione('');
+        setTestoRisposta(''); setRispostaMenzione('');
         caricaReplies(postDettaglio.id);
-        await supabase.from('forum_posts')
-          .update({ reply_count: (postDettaglio.reply_count || 0) + 1 })
-          .eq('id', postDettaglio.id);
+        await supabase.from('forum_posts').update({ reply_count: (postDettaglio.reply_count || 0) + 1 }).eq('id', postDettaglio.id);
         setPostDettaglio({ ...postDettaglio, reply_count: (postDettaglio.reply_count || 0) + 1 });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
     } catch (e) {}
     finally { setInvio(false); }
-  };
-
-  const rispondiA = (nickname: string) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setRispostaMenzione(nickname);
   };
 
   const toggleLike = async (postId: string, likeAttuale: number) => {
@@ -262,28 +232,19 @@ export default function ForumScreen() {
   };
 
   const segnalaPost = (postId: string) => {
-    Alert.alert('Segnala post', 'Vuoi segnalare questo contenuto come inappropriato?', [
+    Alert.alert('Segnala post', 'Vuoi segnalare questo contenuto?', [
       { text: 'Annulla', style: 'cancel' },
       {
-        text: 'Segnala',
-        style: 'destructive',
+        text: 'Segnala', style: 'destructive',
         onPress: async () => {
           const post = posts.find(p => p.id === postId);
           const nuovoCount = (post?.report_count || 0) + 1;
           const daNascondere = nuovoCount >= 3;
-          await supabase.from('forum_posts')
-            .update({ report_count: nuovoCount, reported: daNascondere })
-            .eq('id', postId);
-          setPosts(prev => daNascondere
-            ? prev.filter(p => p.id !== postId)
-            : prev.map(p => p.id === postId ? { ...p, report_count: nuovoCount } : p)
-          );
+          await supabase.from('forum_posts').update({ report_count: nuovoCount, reported: daNascondere }).eq('id', postId);
+          setPosts(prev => daNascondere ? prev.filter(p => p.id !== postId) : prev.map(p => p.id === postId ? { ...p, report_count: nuovoCount } : p));
           if (daNascondere && postDettaglio?.id === postId) { setPostDettaglio(null); setReplies([]); }
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-          Alert.alert('Grazie', daNascondere
-            ? 'Il contenuto è stato rimosso automaticamente dopo più segnalazioni.'
-            : 'Il contenuto è stato segnalato. Sarà rimosso dopo ulteriori segnalazioni.'
-          );
+          Alert.alert('Grazie', daNascondere ? 'Contenuto rimosso.' : 'Segnalazione registrata.');
         }
       }
     ]);
@@ -293,23 +254,14 @@ export default function ForumScreen() {
     Alert.alert('Segnala risposta', 'Vuoi segnalare questa risposta?', [
       { text: 'Annulla', style: 'cancel' },
       {
-        text: 'Segnala',
-        style: 'destructive',
+        text: 'Segnala', style: 'destructive',
         onPress: async () => {
           const reply = replies.find(r => r.id === replyId);
           const nuovoCount = (reply?.report_count || 0) + 1;
           const daNascondere = nuovoCount >= 3;
-          await supabase.from('forum_replies')
-            .update({ report_count: nuovoCount, reported: daNascondere })
-            .eq('id', replyId);
-          setReplies(prev => daNascondere
-            ? prev.filter(r => r.id !== replyId)
-            : prev.map(r => r.id === replyId ? { ...r, report_count: nuovoCount } : r)
-          );
-          Alert.alert('Grazie', daNascondere
-            ? 'La risposta è stata rimossa automaticamente.'
-            : 'La risposta è stata segnalata.'
-          );
+          await supabase.from('forum_replies').update({ report_count: nuovoCount, reported: daNascondere }).eq('id', replyId);
+          setReplies(prev => daNascondere ? prev.filter(r => r.id !== replyId) : prev.map(r => r.id === replyId ? { ...r, report_count: nuovoCount } : r));
+          Alert.alert('Grazie', 'Segnalazione registrata.');
         }
       }
     ]);
@@ -328,15 +280,24 @@ export default function ForumScreen() {
     return `${Math.floor(ore / 24)}g fa`;
   };
 
+  const getCatColore = (value: string) => {
+    const colori: Record<string, string> = {
+      primo_giorno: '#10b981', ce_la_faccio: '#3b82f6',
+      aiuto: '#ef4444', successo: '#d4a853', tutti: '#6b7280',
+    };
+    return colori[value] || '#6b7280';
+  };
+
   return (
     <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#080b12" />
 
       {/* MODAL REGOLAMENTO */}
       <Modal visible={regolamentoModal} transparent animationType="slide">
         <View style={styles.modalRegBg}>
           <View style={styles.modalReg}>
             <Text style={styles.modalRegTitolo}>💬 Benvenuto nel Forum</Text>
-            <Text style={styles.modalRegSub}>Uno spazio anonimo e sicuro. Leggi le regole prima di entrare.</Text>
+            <Text style={styles.modalRegSub}>Uno spazio anonimo e sicuro. Leggi prima di entrare.</Text>
             <View style={styles.regolaBuona}>
               <Text style={styles.regolaText}>✓  Parla liberamente della tua esperienza</Text>
               <Text style={styles.regolaText}>✓  Supporta gli altri senza giudicare</Text>
@@ -344,22 +305,18 @@ export default function ForumScreen() {
             </View>
             <View style={styles.regolaVietata}>
               <Text style={styles.regolaVietataText}>✗  No offese o contenuti violenti</Text>
-              <Text style={styles.regolaVietataText}>✗  No dati personali tuoi o altrui</Text>
+              <Text style={styles.regolaVietataText}>✗  No dati personali</Text>
               <Text style={styles.regolaVietataText}>✗  No link a siti di gioco</Text>
-              <Text style={styles.regolaVietataText}>✗  No spam o pubblicità</Text>
             </View>
             {myNickname && (
               <View style={styles.regolaNickname}>
-                <Text style={styles.regolaNicknameLbl}>IL TUO NICKNAME PERMANENTE</Text>
-                <View style={styles.regolaNicknameRow}>
-                  <Text style={styles.regolaNicknameEmoji}>{myNickname.emoji}</Text>
-                  <Text style={styles.regolaNicknameNome}>{myNickname.nome}</Text>
-                </View>
-                <Text style={styles.regolaNicknameSub}>Rimane fisso. Nessuno può tracciarti.</Text>
+                <Text style={styles.regolaNicknameLbl}>IL TUO NICKNAME</Text>
+                <Text style={styles.regolaNicknameVal}>{myNickname.emoji} {myNickname.nome}</Text>
+                <Text style={styles.regolaNicknameSub}>Fisso e anonimo. Nessuno può tracciarti.</Text>
               </View>
             )}
-            <TouchableOpacity style={styles.regBtn} onPress={accettaRegolamento}>
-              <Text style={styles.regBtnText}>Ho capito, entro nel Forum →</Text>
+            <TouchableOpacity style={styles.regBtn} onPress={accettaRegolamento} activeOpacity={0.8}>
+              <Text style={styles.regBtnText}>Entra nel Forum →</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -370,11 +327,11 @@ export default function ForumScreen() {
         <View style={styles.modalDettaglioBg}>
           <View style={styles.modalDettaglio}>
             <View style={styles.dettaglioHeader}>
-              <TouchableOpacity onPress={() => { setPostDettaglio(null); setReplies([]); setRispostaMenzione(''); }}>
+              <TouchableOpacity onPress={() => { setPostDettaglio(null); setReplies([]); setRispostaMenzione(''); }} activeOpacity={0.7}>
                 <Text style={styles.dettaglioChiudi}>← Torna</Text>
               </TouchableOpacity>
-              <View style={styles.catBadge}>
-                <Text style={styles.catBadgeText}>
+              <View style={[styles.catBadge, { backgroundColor: getCatColore(postDettaglio?.categoria) + '15', borderColor: getCatColore(postDettaglio?.categoria) + '30' }]}>
+                <Text style={[styles.catBadgeText, { color: getCatColore(postDettaglio?.categoria) }]}>
                   {CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.emoji} {CATEGORIE.find(c => c.value === postDettaglio?.categoria)?.label}
                 </Text>
               </View>
@@ -384,9 +341,7 @@ export default function ForumScreen() {
               ref={scrollRef}
               style={styles.dettaglioScroll}
               keyboardShouldPersistTaps="handled"
-              onContentSizeChange={() => {
-                if (replies.length > 0) scrollRef.current?.scrollToEnd({ animated: true });
-              }}
+              onContentSizeChange={() => { if (replies.length > 0) scrollRef.current?.scrollToEnd({ animated: true }); }}
             >
               <View style={styles.dettaglioPost}>
                 <View style={styles.postTopRow}>
@@ -396,17 +351,14 @@ export default function ForumScreen() {
                     <Text style={styles.postTempo}>{formatTempo(postDettaglio?.created_at || '')}</Text>
                   </View>
                   <TouchableOpacity onPress={() => segnalaPost(postDettaglio?.id)} style={styles.segnalaBtn}>
-                    <Text style={styles.segnalaBtnText}>⚑ Segnala</Text>
+                    <Text style={styles.segnalaBtnText}>⚑</Text>
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.dettaglioTitolo}>{postDettaglio?.titolo}</Text>
                 <Text style={styles.dettaglioTesto}>{postDettaglio?.testo}</Text>
-                <TouchableOpacity
-                  style={styles.likeRow}
-                  onPress={() => toggleLike(postDettaglio?.id, postDettaglio?.likes || 0)}
-                >
+                <TouchableOpacity style={styles.likeRow} onPress={() => toggleLike(postDettaglio?.id, postDettaglio?.likes || 0)}>
                   <Text style={styles.likeEmoji}>{likedPosts.has(postDettaglio?.id) ? '❤️' : '🤍'}</Text>
-                  <Text style={styles.likeCount}>{postDettaglio?.likes || 0} mi piace</Text>
+                  <Text style={styles.likeCount}>{postDettaglio?.likes || 0}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -420,8 +372,8 @@ export default function ForumScreen() {
                       <Text style={styles.postNome}>{r.nickname}</Text>
                       <Text style={styles.postTempo}>{formatTempo(r.created_at)}</Text>
                     </View>
-                    <TouchableOpacity onPress={() => rispondiA(r.nickname)} style={styles.rispondiBtn}>
-                      <Text style={styles.rispondiBtnText}>↩ Rispondi</Text>
+                    <TouchableOpacity onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setRispostaMenzione(r.nickname); }} style={styles.rispondiBtn}>
+                      <Text style={styles.rispondiBtnText}>↩</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => segnalaRisposta(r.id)} style={styles.segnalaBtn}>
                       <Text style={styles.segnalaBtnText}>⚑</Text>
@@ -433,10 +385,10 @@ export default function ForumScreen() {
               <View style={{ height: 20 }} />
             </ScrollView>
 
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'android' ? 24 : 0}>
               {rispostaMenzione ? (
                 <View style={styles.menzioneBar}>
-                  <Text style={styles.menzioneText}>↩ Rispondi a @{rispostaMenzione}</Text>
+                  <Text style={styles.menzioneText}>↩ @{rispostaMenzione}</Text>
                   <TouchableOpacity onPress={() => setRispostaMenzione('')}>
                     <Text style={styles.menzioneX}>✕</Text>
                   </TouchableOpacity>
@@ -445,14 +397,14 @@ export default function ForumScreen() {
               <View style={styles.rispostaBox}>
                 <TextInput
                   style={styles.rispostaInput}
-                  placeholder={rispostaMenzione ? `Rispondi a @${rispostaMenzione}...` : 'Scrivi una risposta...'}
-                  placeholderTextColor="#5a5f72"
+                  placeholder="Scrivi una risposta..."
+                  placeholderTextColor="#4b5563"
                   value={testoRisposta}
                   onChangeText={setTestoRisposta}
                   multiline
                   onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 400)}
                 />
-                <TouchableOpacity style={styles.rispostaBtn} onPress={inviaRisposta} disabled={invio}>
+                <TouchableOpacity style={styles.rispostaBtn} onPress={inviaRisposta} disabled={invio} activeOpacity={0.8}>
                   <Text style={styles.rispostaBtnText}>{invio ? '...' : '→'}</Text>
                 </TouchableOpacity>
               </View>
@@ -476,15 +428,16 @@ export default function ForumScreen() {
                   </View>
                 )}
                 <Text style={styles.modalNuovoLbl}>CATEGORIA</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   <View style={{ flexDirection: 'row', gap: 8 }}>
                     {CATEGORIE.slice(1).map(c => (
                       <TouchableOpacity
                         key={c.value}
-                        style={[styles.catPill, categoriaNuova === c.value && styles.catPillOn]}
+                        style={[styles.catPill, categoriaNuova === c.value && { backgroundColor: getCatColore(c.value) + '15', borderColor: getCatColore(c.value) + '40' }]}
                         onPress={() => setCategoriaNuova(c.value)}
+                        activeOpacity={0.7}
                       >
-                        <Text style={[styles.catPillText, categoriaNuova === c.value && { color: '#c9965a' }]}>{c.emoji} {c.label}</Text>
+                        <Text style={[styles.catPillText, categoriaNuova === c.value && { color: getCatColore(c.value) }]}>{c.emoji} {c.label}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -493,16 +446,16 @@ export default function ForumScreen() {
                 <TextInput
                   style={styles.modalInput}
                   placeholder="Un titolo breve..."
-                  placeholderTextColor="#5a5f72"
+                  placeholderTextColor="#4b5563"
                   value={titoloNuovo}
                   onChangeText={t => setTitoloNuovo(t.slice(0, 100))}
                   returnKeyType="next"
                 />
                 <Text style={styles.modalNuovoLbl}>MESSAGGIO</Text>
                 <TextInput
-                  style={[styles.modalInput, { minHeight: 100 }]}
+                  style={[styles.modalInput, { minHeight: 100, textAlignVertical: 'top' }]}
                   placeholder="Scrivi liberamente. Sei anonimo."
-                  placeholderTextColor="#5a5f72"
+                  placeholderTextColor="#4b5563"
                   value={testoNuovo}
                   onChangeText={t => setTestoNuovo(t.slice(0, 500))}
                   multiline
@@ -511,12 +464,12 @@ export default function ForumScreen() {
                   <Text style={styles.contatore}>{500 - testoNuovo.length} caratteri rimasti</Text>
                 )}
                 <View style={styles.modalNuovoBtns}>
-                  <TouchableOpacity style={styles.modalNuovoCancel} onPress={() => setNuovoPostModal(false)}>
+                  <TouchableOpacity style={styles.modalNuovoCancel} onPress={() => setNuovoPostModal(false)} activeOpacity={0.7}>
                     <Text style={styles.modalNuovoCancelText}>Annulla</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalNuovoSave, (!titoloNuovo || !testoNuovo) && { opacity: 0.4 }]}
-                    onPress={inviaPost} disabled={invio}
+                    onPress={inviaPost} disabled={invio} activeOpacity={0.8}
                   >
                     <Text style={styles.modalNuovoSaveText}>{invio ? '...' : 'Pubblica'}</Text>
                   </TouchableOpacity>
@@ -529,18 +482,22 @@ export default function ForumScreen() {
 
       {/* LISTA POST */}
       <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); caricaPosts(); }} tintColor="#c9965a" colors={['#c9965a']} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); caricaPosts(); }} tintColor="#d4a853" colors={['#d4a853']} />}
+        showsVerticalScrollIndicator={false}
       >
         <View style={styles.topbar}>
-          <Text style={styles.titolo}>Forum</Text>
-          <TouchableOpacity style={styles.nuovoBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setNuovoPostModal(true); }}>
+          <View>
+            <Text style={styles.logoSub}>community</Text>
+            <Text style={styles.titolo}>Forum</Text>
+          </View>
+          <TouchableOpacity style={styles.nuovoBtn} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setNuovoPostModal(true); }} activeOpacity={0.8}>
             <Text style={styles.nuovoBtnText}>+ Nuovo</Text>
           </TouchableOpacity>
         </View>
 
         {myNickname && (
           <View style={styles.anonNote}>
-            <Text style={styles.anonText}>{myNickname.emoji} Sei {myNickname.nome} · Anonimo · Senza giudizio</Text>
+            <Text style={styles.anonText}>{myNickname.emoji}  {myNickname.nome}  ·  anonimo  ·  senza giudizio</Text>
           </View>
         )}
 
@@ -549,10 +506,11 @@ export default function ForumScreen() {
             {CATEGORIE.map(c => (
               <TouchableOpacity
                 key={c.value}
-                style={[styles.catTab, categoriaSelezionata === c.value && styles.catTabOn]}
+                style={[styles.catTab, categoriaSelezionata === c.value && { backgroundColor: getCatColore(c.value) + '12', borderColor: getCatColore(c.value) + '35' }]}
                 onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setCategoriaSelezionata(c.value); }}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.catTabText, categoriaSelezionata === c.value && styles.catTabTextOn]}>
+                <Text style={[styles.catTabText, categoriaSelezionata === c.value && { color: getCatColore(c.value), fontWeight: '600' }]}>
                   {c.emoji} {c.label}
                 </Text>
               </TouchableOpacity>
@@ -567,9 +525,6 @@ export default function ForumScreen() {
             <Text style={styles.erroreEmoji}>📡</Text>
             <Text style={styles.erroreTitolo}>Connessione assente</Text>
             <Text style={styles.erroreSub}>Tira giù per riprovare</Text>
-            <TouchableOpacity style={styles.erroreBtn} onPress={caricaPosts}>
-              <Text style={styles.erroreBtnText}>Riprova</Text>
-            </TouchableOpacity>
           </View>
         ) : posts.length === 0 ? (
           <View style={styles.empty}>
@@ -579,10 +534,10 @@ export default function ForumScreen() {
           </View>
         ) : (
           posts.map(post => (
-            <TouchableOpacity key={post.id} style={styles.postCard} onPress={() => apriPost(post)}>
+            <TouchableOpacity key={post.id} style={styles.postCard} onPress={() => apriPost(post)} activeOpacity={0.85}>
               <View style={styles.postCardTop}>
-                <View style={styles.catBadge}>
-                  <Text style={styles.catBadgeText}>
+                <View style={[styles.catBadge, { backgroundColor: getCatColore(post.categoria) + '12', borderColor: getCatColore(post.categoria) + '30' }]}>
+                  <Text style={[styles.catBadgeText, { color: getCatColore(post.categoria) }]}>
                     {CATEGORIE.find(c => c.value === post.categoria)?.emoji} {CATEGORIE.find(c => c.value === post.categoria)?.label || 'Generale'}
                   </Text>
                 </View>
@@ -596,10 +551,7 @@ export default function ForumScreen() {
                   <Text style={styles.postAutoreNome}>{post.nickname}</Text>
                 </View>
                 <View style={styles.postStats}>
-                  <TouchableOpacity
-                    style={styles.likeRowSmall}
-                    onPress={() => toggleLike(post.id, post.likes || 0)}
-                  >
+                  <TouchableOpacity style={styles.likeRowSmall} onPress={() => toggleLike(post.id, post.likes || 0)}>
                     <Text style={styles.likeEmojiSmall}>{likedPosts.has(post.id) ? '❤️' : '🤍'}</Text>
                     <Text style={styles.likeCountSmall}>{post.likes || 0}</Text>
                   </TouchableOpacity>
@@ -616,115 +568,109 @@ export default function ForumScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#06080f' },
-  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 60 },
-  titolo: { fontSize: 26, fontWeight: '700', color: '#ddd8cf', fontFamily: 'Lora_700Bold' },
-  nuovoBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 8, paddingHorizontal: 16 },
-  nuovoBtnText: { color: '#1a0f00', fontSize: 13, fontWeight: '700' },
-  anonNote: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 12, padding: 10 },
-  anonText: { fontSize: 11, color: '#5a5f72', textAlign: 'center', fontStyle: 'italic' },
+  container: { flex: 1, backgroundColor: '#080b12' },
+  topbar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: 24, paddingTop: 56, paddingBottom: 16 },
+  logoSub: { fontSize: 10, color: '#4b5563', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 3 },
+  titolo: { fontSize: 26, fontWeight: '700', color: '#d4a853', letterSpacing: 1 },
+  nuovoBtn: { backgroundColor: '#d4a853', borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 },
+  nuovoBtnText: { color: '#080b12', fontSize: 13, fontWeight: '700' },
+  anonNote: { marginHorizontal: 20, marginBottom: 14, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 12, padding: 10 },
+  anonText: { fontSize: 11, color: '#4b5563', textAlign: 'center', letterSpacing: 0.5 },
   categoriePill: { marginBottom: 14 },
-  catTab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a' },
-  catTabOn: { backgroundColor: 'rgba(201,150,90,0.1)', borderColor: 'rgba(201,150,90,0.4)' },
-  catTabText: { fontSize: 12, color: '#5a5f72' },
-  catTabTextOn: { color: '#c9965a', fontWeight: '600' },
-  postCard: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  catTab: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030' },
+  catTabText: { fontSize: 12, color: '#4b5563' },
+  postCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 18, padding: 16 },
   postCardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  catBadge: { backgroundColor: 'rgba(201,150,90,0.08)', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
-  catBadgeText: { fontSize: 10, color: '#c9965a' },
-  postTitolo: { fontSize: 15, fontWeight: '700', color: '#ddd8cf', marginBottom: 6, lineHeight: 22 },
-  postAnteprima: { fontSize: 12, color: '#5a5f72', lineHeight: 18, marginBottom: 12 },
+  catBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 1 },
+  catBadgeText: { fontSize: 10, fontWeight: '600' },
+  postTitolo: { fontSize: 15, fontWeight: '700', color: '#f9fafb', marginBottom: 6, lineHeight: 22 },
+  postAnteprima: { fontSize: 13, color: '#6b7280', lineHeight: 20, marginBottom: 12 },
   postFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   postAutore: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  postAutoreEmoji: { fontSize: 14 },
-  postAutoreNome: { fontSize: 11, color: '#5a5f72' },
+  postAutoreEmoji: { fontSize: 13 },
+  postAutoreNome: { fontSize: 11, color: '#4b5563' },
   postStats: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  postReplies: { fontSize: 11, color: '#5a5f72' },
-  postTempo: { fontSize: 10, color: '#5a5f72' },
-  likeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, alignSelf: 'flex-start' },
+  postReplies: { fontSize: 11, color: '#4b5563' },
+  postTempo: { fontSize: 10, color: '#4b5563' },
+  likeRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
   likeRowSmall: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  likeEmoji: { fontSize: 20 },
+  likeEmoji: { fontSize: 18 },
   likeEmojiSmall: { fontSize: 14 },
-  likeCount: { fontSize: 13, color: '#5a5f72' },
-  likeCountSmall: { fontSize: 11, color: '#5a5f72' },
-  segnalaBtn: { padding: 4 },
-  segnalaBtnText: { fontSize: 11, color: '#5a5f72' },
-  rispondiBtn: { padding: 4, marginRight: 8 },
-  rispondiBtnText: { fontSize: 11, color: '#c9965a' },
-  menzioneBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(201,150,90,0.1)', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'rgba(201,150,90,0.2)' },
-  menzioneText: { fontSize: 12, color: '#c9965a' },
-  menzioneX: { fontSize: 14, color: '#5a5f72', padding: 4 },
+  likeCount: { fontSize: 13, color: '#6b7280' },
+  likeCountSmall: { fontSize: 11, color: '#4b5563' },
+  segnalaBtn: { padding: 6 },
+  segnalaBtnText: { fontSize: 12, color: '#374151' },
+  rispondiBtn: { padding: 6, marginRight: 4 },
+  rispondiBtnText: { fontSize: 14, color: '#d4a853' },
+  menzioneBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'rgba(212,168,83,0.08)', paddingHorizontal: 16, paddingVertical: 8, borderTopWidth: 1, borderTopColor: 'rgba(212,168,83,0.15)' },
+  menzioneText: { fontSize: 12, color: '#d4a853' },
+  menzioneX: { fontSize: 14, color: '#4b5563', padding: 4 },
   empty: { padding: 40, alignItems: 'center' },
   emptyEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyTitolo: { fontSize: 16, fontWeight: '600', color: '#ddd8cf', marginBottom: 6 },
-  emptySub: { fontSize: 13, color: '#5a5f72', textAlign: 'center' },
+  emptyTitolo: { fontSize: 16, fontWeight: '600', color: '#f9fafb', marginBottom: 6 },
+  emptySub: { fontSize: 13, color: '#4b5563', textAlign: 'center' },
   erroreBox: { padding: 40, alignItems: 'center' },
   erroreEmoji: { fontSize: 40, marginBottom: 12 },
-  erroreTitolo: { fontSize: 16, fontWeight: '600', color: '#ddd8cf', marginBottom: 6 },
-  erroreSub: { fontSize: 13, color: '#5a5f72', marginBottom: 20 },
-  erroreBtn: { backgroundColor: '#c9965a', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 24 },
-  erroreBtnText: { color: '#1a0f00', fontSize: 13, fontWeight: '700' },
-  skeletonCard: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  erroreTitolo: { fontSize: 16, fontWeight: '600', color: '#f9fafb', marginBottom: 6 },
+  erroreSub: { fontSize: 13, color: '#4b5563' },
+  skeletonCard: { marginHorizontal: 20, marginBottom: 10, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 18, padding: 16 },
   skeletonTop: { flexDirection: 'row', gap: 8, marginBottom: 10 },
-  skeletonAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1e2336' },
+  skeletonAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#1a2030' },
   skeletonInfo: { flex: 1, gap: 6 },
-  skeletonNome: { height: 10, backgroundColor: '#1e2336', borderRadius: 5, width: '40%' },
-  skeletonTempo: { height: 8, backgroundColor: '#1e2336', borderRadius: 4, width: '25%' },
-  skeletonTitolo: { height: 12, backgroundColor: '#1e2336', borderRadius: 5, width: '80%', marginBottom: 8 },
-  skeletonTesto: { height: 10, backgroundColor: '#1e2336', borderRadius: 5, width: '60%' },
-  modalDettaglioBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
-  modalDettaglio: { flex: 1, backgroundColor: '#06080f', marginTop: 60, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
-  dettaglioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#181c2a' },
-  dettaglioChiudi: { fontSize: 14, color: '#c9965a', fontWeight: '600' },
+  skeletonNome: { height: 10, backgroundColor: '#1a2030', borderRadius: 5, width: '40%' },
+  skeletonTempo: { height: 8, backgroundColor: '#1a2030', borderRadius: 4, width: '25%' },
+  skeletonTitolo: { height: 12, backgroundColor: '#1a2030', borderRadius: 5, width: '80%', marginBottom: 8 },
+  skeletonTesto: { height: 10, backgroundColor: '#1a2030', borderRadius: 5, width: '60%' },
+  modalDettaglioBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' },
+  modalDettaglio: { flex: 1, backgroundColor: '#080b12', marginTop: 60, borderTopLeftRadius: 24, borderTopRightRadius: 24 },
+  dettaglioHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderBottomColor: '#1a2030' },
+  dettaglioChiudi: { fontSize: 14, color: '#d4a853', fontWeight: '600' },
   dettaglioScroll: { flex: 1 },
-  dettaglioPost: { margin: 20, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 18, padding: 16 },
+  dettaglioPost: { margin: 16, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 18, padding: 16 },
   postTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(201,150,90,0.15)', alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(212,168,83,0.12)', alignItems: 'center', justifyContent: 'center' },
   avEmoji: { fontSize: 16 },
-  avatarSmall: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(93,143,168,0.15)', alignItems: 'center', justifyContent: 'center' },
+  avatarSmall: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#111827', alignItems: 'center', justifyContent: 'center' },
   avEmojiSmall: { fontSize: 12 },
-  postNome: { fontSize: 12, fontWeight: '600', color: '#ddd8cf' },
-  dettaglioTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 10, lineHeight: 26, fontFamily: 'Lora_700Bold' },
-  dettaglioTesto: { fontSize: 13, color: '#a8a29a', lineHeight: 22 },
-  repliesLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginHorizontal: 20, marginTop: 10, marginBottom: 8 },
-  replyCard: { marginHorizontal: 20, marginBottom: 8, backgroundColor: '#0c0f1a', borderWidth: 1, borderColor: '#181c2a', borderRadius: 14, padding: 12 },
-  replyTesto: { fontSize: 13, color: '#ddd8cf', lineHeight: 20 },
-  rispostaBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 16, borderTopWidth: 1, borderTopColor: '#181c2a', backgroundColor: '#0c0f1a' },
-  rispostaInput: { flex: 1, color: '#ddd8cf', fontSize: 13, minHeight: 40, backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
-  rispostaBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#c9965a', alignItems: 'center', justifyContent: 'center' },
-  rispostaBtnText: { color: '#1a0f00', fontSize: 16, fontWeight: '700' },
+  postNome: { fontSize: 12, fontWeight: '600', color: '#f9fafb' },
+  dettaglioTitolo: { fontSize: 18, fontWeight: '700', color: '#f9fafb', marginBottom: 10, lineHeight: 26, fontFamily: 'Lora_700Bold' },
+  dettaglioTesto: { fontSize: 14, color: '#9ca3af', lineHeight: 22 },
+  repliesLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 2, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
+  replyCard: { marginHorizontal: 16, marginBottom: 8, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 14, padding: 12 },
+  replyTesto: { fontSize: 14, color: '#e5e7eb', lineHeight: 20 },
+  rispostaBox: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, paddingBottom: 16, borderTopWidth: 1, borderTopColor: '#1a2030', backgroundColor: '#0d1117' },
+  rispostaInput: { flex: 1, color: '#ffffff', fontSize: 14, minHeight: 40, maxHeight: 100, backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2030', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, textAlignVertical: 'top' },
+  rispostaBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#d4a853', alignItems: 'center', justifyContent: 'center' },
+  rispostaBtnText: { color: '#080b12', fontSize: 16, fontWeight: '700' },
   modalNuovoBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  modalNuovo: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalNuovoTitolo: { fontSize: 18, fontWeight: '700', color: '#ddd8cf', marginBottom: 12, textAlign: 'center', fontFamily: 'Lora_700Bold' },
+  modalNuovo: { backgroundColor: '#0d1117', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalNuovoTitolo: { fontSize: 18, fontWeight: '700', color: '#f9fafb', marginBottom: 12, textAlign: 'center', fontFamily: 'Lora_700Bold' },
   nicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16, justifyContent: 'center' },
-  nicknameEmoji: { fontSize: 18 },
-  nicknameNome: { fontSize: 13, fontWeight: '600', color: '#ddd8cf' },
-  nicknameSub: { fontSize: 11, color: '#5a5f72' },
-  modalNuovoLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginBottom: 8 },
-  modalInput: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 12, padding: 14, color: '#ddd8cf', fontSize: 14, marginBottom: 14 },
-  contatore: { fontSize: 10, color: '#b85c5c', textAlign: 'right', marginTop: -10, marginBottom: 10 },
-  catPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336' },
-  catPillOn: { backgroundColor: 'rgba(201,150,90,0.1)', borderColor: 'rgba(201,150,90,0.4)' },
-  catPillText: { fontSize: 12, color: '#5a5f72' },
-  modalNuovoBtns: { flexDirection: 'row', gap: 10 },
-  modalNuovoCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#111525', alignItems: 'center' },
-  modalNuovoCancelText: { fontSize: 14, color: '#5a5f72' },
-  modalNuovoSave: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#c9965a', alignItems: 'center' },
-  modalNuovoSaveText: { fontSize: 14, color: '#1a0f00', fontWeight: '700' },
-  modalRegBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'flex-end' },
-  modalReg: { backgroundColor: '#0c0f1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
-  modalRegTitolo: { fontSize: 20, fontWeight: '700', color: '#ddd8cf', textAlign: 'center', marginBottom: 8, fontFamily: 'Lora_700Bold' },
-  modalRegSub: { fontSize: 13, color: '#5a5f72', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
-  regolaBuona: { backgroundColor: 'rgba(106,170,130,0.07)', borderWidth: 1, borderColor: 'rgba(106,170,130,0.2)', borderRadius: 14, padding: 14, marginBottom: 10 },
-  regolaText: { fontSize: 13, color: '#6aaa82', marginBottom: 6, lineHeight: 20 },
-  regolaVietata: { backgroundColor: 'rgba(184,92,92,0.07)', borderWidth: 1, borderColor: 'rgba(184,92,92,0.2)', borderRadius: 14, padding: 14, marginBottom: 16 },
-  regolaVietataText: { fontSize: 13, color: '#b85c5c', marginBottom: 6, lineHeight: 20 },
-  regolaNickname: { backgroundColor: '#111525', borderWidth: 1, borderColor: '#1e2336', borderRadius: 14, padding: 14, marginBottom: 20, alignItems: 'center' },
-  regolaNicknameLbl: { fontSize: 9, color: '#5a5f72', letterSpacing: 2, marginBottom: 10 },
-  regolaNicknameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
-  regolaNicknameEmoji: { fontSize: 28 },
-  regolaNicknameNome: { fontSize: 18, fontWeight: '700', color: '#ddd8cf' },
-  regolaNicknameSub: { fontSize: 11, color: '#5a5f72' },
-  regBtn: { backgroundColor: '#c9965a', borderRadius: 16, padding: 16, alignItems: 'center' },
-  regBtnText: { color: '#1a0f00', fontSize: 15, fontWeight: '700' },
+  nicknameEmoji: { fontSize: 16 },
+  nicknameNome: { fontSize: 13, fontWeight: '600', color: '#f9fafb' },
+  nicknameSub: { fontSize: 11, color: '#4b5563' },
+  modalNuovoLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 2, marginBottom: 8, textTransform: 'uppercase' },
+  modalInput: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2030', borderRadius: 12, padding: 14, color: '#ffffff', fontSize: 14, marginBottom: 14 },
+  contatore: { fontSize: 10, color: '#ef4444', textAlign: 'right', marginTop: -10, marginBottom: 10 },
+  catPill: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2030' },
+  catPillText: { fontSize: 12, color: '#4b5563' },
+  modalNuovoBtns: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  modalNuovoCancel: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#111827', alignItems: 'center' },
+  modalNuovoCancelText: { fontSize: 14, color: '#6b7280' },
+  modalNuovoSave: { flex: 1, padding: 14, borderRadius: 12, backgroundColor: '#d4a853', alignItems: 'center' },
+  modalNuovoSaveText: { fontSize: 14, color: '#080b12', fontWeight: '700' },
+  modalRegBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'flex-end' },
+  modalReg: { backgroundColor: '#0d1117', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
+  modalRegTitolo: { fontSize: 20, fontWeight: '700', color: '#f9fafb', textAlign: 'center', marginBottom: 8, fontFamily: 'Lora_700Bold' },
+  modalRegSub: { fontSize: 13, color: '#6b7280', textAlign: 'center', marginBottom: 20, lineHeight: 20 },
+  regolaBuona: { backgroundColor: 'rgba(16,185,129,0.06)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.15)', borderRadius: 14, padding: 14, marginBottom: 10 },
+  regolaText: { fontSize: 13, color: '#10b981', marginBottom: 6, lineHeight: 20 },
+  regolaVietata: { backgroundColor: 'rgba(239,68,68,0.06)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.15)', borderRadius: 14, padding: 14, marginBottom: 16 },
+  regolaVietataText: { fontSize: 13, color: '#ef4444', marginBottom: 6, lineHeight: 20 },
+  regolaNickname: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2030', borderRadius: 14, padding: 14, marginBottom: 20, alignItems: 'center' },
+  regolaNicknameLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 2, marginBottom: 8, textTransform: 'uppercase' },
+  regolaNicknameVal: { fontSize: 20, fontWeight: '700', color: '#f9fafb', marginBottom: 4 },
+  regolaNicknameSub: { fontSize: 11, color: '#4b5563' },
+  regBtn: { backgroundColor: '#d4a853', borderRadius: 16, padding: 16, alignItems: 'center' },
+  regBtnText: { color: '#080b12', fontSize: 15, fontWeight: '700' },
 });

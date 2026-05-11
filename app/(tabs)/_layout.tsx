@@ -2,10 +2,17 @@ import { Tabs } from 'expo-router';
 import { Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-function TabBarIcon({ emoji, color, active }: { emoji: string; color: string; active: boolean }) {
+function TabIcon({ emoji, focused, label }: { emoji: string; focused: boolean; label: string }) {
   return (
-    <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 18, opacity: active ? 1 : 0.5 }}>{emoji}</Text>
+    <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{
+        width: 44, height: 28, borderRadius: 14,
+        backgroundColor: focused ? 'rgba(212,168,83,0.12)' : 'transparent',
+        alignItems: 'center', justifyContent: 'center',
+        marginBottom: 2,
+      }}>
+        <Text style={{ fontSize: 18, opacity: focused ? 1 : 0.45 }}>{emoji}</Text>
+      </View>
     </View>
   );
 }
@@ -17,43 +24,45 @@ export default function TabLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#0d1117',
-          borderTopColor: '#1f2937',
+          backgroundColor: '#080b12',
+          borderTopColor: 'rgba(255,255,255,0.05)',
           borderTopWidth: 1,
-          height: 60 + insets.bottom + 8,
-          paddingBottom: insets.bottom + 10,
-          paddingTop: 8,
+          height: 58 + insets.bottom,
+          paddingBottom: insets.bottom,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarActiveTintColor: '#d4a853',
-        tabBarInactiveTintColor: '#6b7280',
-        tabBarLabelStyle: { fontSize: 9 },
+        tabBarInactiveTintColor: '#4b5563',
+        tabBarLabelStyle: { fontSize: 10, letterSpacing: 0.3, marginTop: -2 },
+        tabBarItemStyle: { paddingTop: 6 },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon emoji="🏠" color={color} active={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} label="Home" />,
         }}
       />
       <Tabs.Screen
         name="sos"
         options={{
           title: 'SOS',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon emoji="🚨" color={color} active={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="🚨" focused={focused} label="SOS" />,
         }}
       />
       <Tabs.Screen
         name="forum"
         options={{
           title: 'Forum',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon emoji="💬" color={color} active={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="💬" focused={focused} label="Forum" />,
         }}
       />
       <Tabs.Screen
         name="profilo"
         options={{
           title: 'Profilo',
-          tabBarIcon: ({ color, focused }) => <TabBarIcon emoji="👤" color={color} active={focused} />,
+          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} label="Profilo" />,
         }}
       />
       <Tabs.Screen name="diario" options={{ href: null }} />

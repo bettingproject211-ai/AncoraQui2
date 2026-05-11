@@ -2,8 +2,27 @@ import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Animated,
+  Dimensions,
+  Modal,
+  ScrollView,
+  Share,
+  StatusBar,
+  StyleSheet, Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
+import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { supabase } from '../../supabase';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const RING_SIZE = 210;
+const RING_STROKE = 11;
+const RING_RADIUS = (RING_SIZE - RING_STROKE * 2) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno', desc: 'Hai iniziato. È tutto.' },
@@ -16,7 +35,7 @@ const BADGES = [
   { giorni: 100, emoji: '🚀', titolo: '100 giorni', desc: 'Cento giorni. Nessuno te li toglie.' },
 ];
 
-const FRASI_GIORNI: Record<number, string> = {
+const FRASI: Record<number, string> = {
   0: 'Sei qui. È già qualcosa.',
   1: 'Un giorno. Il tuo cervello inizia già a cambiare.',
   2: 'Due giorni. Stai dimostrando qualcosa a te stesso.',
@@ -32,21 +51,21 @@ const FRASI_GIORNI: Record<number, string> = {
   100: 'Cento giorni. Nessuno te li toglie. Mai.',
 };
 
-const FRASI_DOPO_RICADUTA: Record<string, string> = {
+const FRASI_RICADUTA: Record<string, string> = {
   alta: 'Hai già fatto tantissimo. Quella forza è ancora tua.',
   media: 'Sai già come si fa. Ricominci con qualcosa in più.',
   bassa: 'Ci vuole coraggio a ricominciare. Sei ancora qui.',
   zero: 'Sei qui. È già qualcosa.',
 };
 
-const getFraseGiorni = (giorni: number, ultimaRicaduta: number | null): string => {
+const getFrase = (giorni: number, ultimaRicaduta: number | null): string => {
   if (giorni === 0 && ultimaRicaduta !== null) {
-    if (ultimaRicaduta >= 30) return FRASI_DOPO_RICADUTA.alta;
-    if (ultimaRicaduta >= 7) return FRASI_DOPO_RICADUTA.media;
-    if (ultimaRicaduta >= 1) return FRASI_DOPO_RICADUTA.bassa;
-    return FRASI_DOPO_RICADUTA.zero;
+    if (ultimaRicaduta >= 30) return FRASI_RICADUTA.alta;
+    if (ultimaRicaduta >= 7) return FRASI_RICADUTA.media;
+    if (ultimaRicaduta >= 1) return FRASI_RICADUTA.bassa;
+    return FRASI_RICADUTA.zero;
   }
-  if (FRASI_GIORNI[giorni]) return FRASI_GIORNI[giorni];
+  if (FRASI[giorni]) return FRASI[giorni];
   if (giorni > 100) return `${giorni} giorni. Sei un esempio per tutti.`;
   if (giorni > 60) return `${giorni} giorni. Stai costruendo una vita nuova.`;
   if (giorni > 30) return `${giorni} giorni. Un mese e più. Continua.`;
@@ -58,7 +77,7 @@ const getFraseGiorni = (giorni: number, ultimaRicaduta: number | null): string =
 
 const getProssimoBadge = (giorni: number) => BADGES.find(b => b.giorni > giorni) || null;
 
-const getProgressoPerc = (giorni: number): number => {
+const getProgresso = (giorni: number): number => {
   const prossimo = getProssimoBadge(giorni);
   if (!prossimo) return 1;
   const precedente = [...BADGES].reverse().find(b => b.giorni <= giorni);
@@ -92,17 +111,20 @@ export default function HomeScreen() {
   const [settimana, setSettimana] = useState<boolean[]>(Array(7).fill(false));
   const [oggiResistito, setOggiResistito] = useState(false);
   const [ultimaRicaduta, setUltimaRicaduta] = useState<number | null>(null);
-  const [progresso, setProgresso] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   const animaBadge = useRef(new Animated.Value(0)).current;
   const animaSos = useRef(new Animated.Value(1)).current;
   const animaSosPulse = useRef(new Animated.Value(1)).current;
-  const animaProgresso = useRef(new Animated.Value(0)).current;
+  const animaRing = useRef(new Animated.Value(0)).current;
+  const animaHero = useRef(new Animated.Value(0)).current;
+  const animaCards = useRef(new Animated.Value(0)).current;
 
   useFocusEffect(useCallback(() => {
     setLoaded(false);
-    animaProgresso.setValue(0);
+    animaRing.setValue(0);
+    animaHero.setValue(0);
+    animaCards.setValue(0);
     caricaDati();
     caricaOnline();
     caricaMood();
@@ -111,36 +133,31 @@ export default function HomeScreen() {
   useEffect(() => { avviaPulseSos(); }, []);
 
   useEffect(() => {
-    if (giorni >= 0 && loaded) {
-      let current = 0;
-      const target = giorni;
-      const steps = 40;
-      const stepTime = 1200 / steps;
-      const stepVal = Math.max(target / steps, 0.1);
-      const timer = setInterval(() => {
-        current = Math.min(current + stepVal, target);
-        setDisplayGiorni(Math.round(current));
-        if (current >= target) clearInterval(timer);
-      }, stepTime);
-
-      const perc = getProgressoPerc(giorni);
-      setProgresso(perc);
-
-      setTimeout(() => {
-        Animated.timing(animaProgresso, { toValue: perc, duration: 1600, useNativeDriver: false }).start();
-      }, 300);
-
-      if (giorni >= 1) controllaCheckin();
-      return () => clearInterval(timer);
-    }
-  }, [giorni, loaded]);
+    if (!loaded) return;
+    const target = giorni;
+    let current = 0;
+    const timer = setInterval(() => {
+      current = Math.min(current + Math.max(target / 30, 0.5), target);
+      setDisplayGiorni(Math.round(current));
+      if (current >= target) clearInterval(timer);
+    }, 40);
+    Animated.sequence([
+      Animated.timing(animaHero, { toValue: 1, duration: 700, useNativeDriver: true }),
+      Animated.timing(animaRing, { toValue: getProgresso(giorni), duration: 1800, useNativeDriver: false }),
+    ]).start();
+    setTimeout(() => {
+      Animated.timing(animaCards, { toValue: 1, duration: 600, useNativeDriver: true }).start();
+    }, 900);
+    if (giorni >= 1) controllaCheckin();
+    return () => clearInterval(timer);
+  }, [loaded, giorni]);
 
   const avviaPulseSos = () => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(animaSosPulse, { toValue: 1.03, duration: 1200, useNativeDriver: true }),
-        Animated.timing(animaSosPulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.delay(2000),
+        Animated.timing(animaSosPulse, { toValue: 1.04, duration: 1400, useNativeDriver: true }),
+        Animated.timing(animaSosPulse, { toValue: 1, duration: 1400, useNativeDriver: true }),
+        Animated.delay(1800),
       ])
     ).start();
   };
@@ -172,11 +189,9 @@ export default function HomeScreen() {
       }
       controllaBadge(diff);
       const giornoOggi = oggi.getDay() === 0 ? 6 : oggi.getDay() - 1;
-      const nuovaSettimana = Array(7).fill(false).map((_, i) => {
-        const giorniDaOggi = giornoOggi - i;
-        return giorniDaOggi >= 0 && giorniDaOggi < diff;
-      });
-      setSettimana(nuovaSettimana.reverse());
+      setSettimana(Array(7).fill(false).map((_, i) => {
+        return (giornoOggi - i) >= 0 && (giornoOggi - i) < diff;
+      }).reverse());
       setLoaded(true);
     } catch (e) { setLoaded(true); }
   };
@@ -184,10 +199,9 @@ export default function HomeScreen() {
   const controllaCheckin = async () => {
     try {
       const oggi = new Date().toDateString();
-      const ultimoCheckin = await AsyncStorageLib.getItem('ultimoCheckin');
-      if (ultimoCheckin !== oggi) {
-        const indice = new Date().getDay() % DOMANDE.length;
-        setDomandaOggi(DOMANDE[indice]);
+      const ultimo = await AsyncStorageLib.getItem('ultimoCheckin');
+      if (ultimo !== oggi) {
+        setDomandaOggi(DOMANDE[new Date().getDay() % DOMANDE.length]);
         setTimeout(() => setCheckinModal(true), 4000);
       }
     } catch (e) {}
@@ -200,13 +214,13 @@ export default function HomeScreen() {
       if (checkinRisposta.trim()) {
         const impulsiStr = await AsyncStorageLib.getItem('impulsi');
         const impulsi = impulsiStr ? JSON.parse(impulsiStr) : [];
-        const nuovo = {
+        impulsi.unshift({
           id: Date.now(), trigger: 'Check-in', nota: checkinRisposta.trim(), resistito: true,
           ora: new Date().getHours(),
           oraLabel: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
           data: new Date().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }),
-        };
-        await AsyncStorageLib.setItem('impulsi', JSON.stringify([nuovo, ...impulsi]));
+        });
+        await AsyncStorageLib.setItem('impulsi', JSON.stringify(impulsi));
       }
       setCheckinModal(false);
       setCheckinRisposta('');
@@ -223,7 +237,7 @@ export default function HomeScreen() {
 
   const caricaOnline = async () => {
     try {
-      const ieri = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const ieri = new Date(Date.now() - 86400000).toISOString();
       const { count } = await supabase.from('voci').select('*', { count: 'exact', head: true }).gte('created_at', ieri);
       setOnlineCount(count || 0);
     } catch (e) {}
@@ -237,35 +251,39 @@ export default function HomeScreen() {
 
   const controllaBadge = async (diff: number) => {
     const badge = BADGES.find(b => b.giorni === diff);
-    if (badge) {
-      const key = `badge_${badge.giorni}`;
-      const già = await AsyncStorageLib.getItem(key);
-      if (!già) {
-        await AsyncStorageLib.setItem(key, 'true');
-        setBadgeModal(badge);
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        Animated.spring(animaBadge, { toValue: 1, useNativeDriver: true }).start();
-      }
+    if (!badge) return;
+    const già = await AsyncStorageLib.getItem(`badge_${badge.giorni}`);
+    if (!già) {
+      await AsyncStorageLib.setItem(`badge_${badge.giorni}`, 'true');
+      setBadgeModal(badge);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Animated.spring(animaBadge, { toValue: 1, useNativeDriver: true }).start();
     }
   };
 
   const condividiMilestone = async () => {
     if (!badgeModal) return;
     try {
-      await Share.share({ message: `${badgeModal.emoji} Ho raggiunto "${badgeModal.titolo}" con Ancora Qui.\n\n${badgeModal.desc}\n\nAnche tu puoi farcela. Sei ancora qui. 🤝` });
+      await Share.share({ message: `${badgeModal.emoji} Ho raggiunto "${badgeModal.titolo}" con Ancora Qui.\n\n${badgeModal.desc}\n\nAnche tu puoi farcela. 🤝` });
     } catch (e) {}
   };
 
   const premiSos = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     Animated.sequence([
-      Animated.timing(animaSos, { toValue: 0.93, duration: 80, useNativeDriver: true }),
+      Animated.timing(animaSos, { toValue: 0.92, duration: 80, useNativeDriver: true }),
       Animated.timing(animaSos, { toValue: 1, duration: 80, useNativeDriver: true }),
     ]).start(() => router.push('/(tabs)/sos' as any));
   };
 
   const prossimoBadge = getProssimoBadge(giorni);
+  const progresso = getProgresso(giorni);
+  const strokeDashoffset = animaRing.interpolate({
+    inputRange: [0, 1],
+    outputRange: [RING_CIRCUMFERENCE, RING_CIRCUMFERENCE * (1 - progresso)],
+  });
   const giorniSettimana = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
+  const giornoOggi = new Date().getDay() === 0 ? 6 : new Date().getDay() - 1;
   const moods = [
     { emoji: '😴', label: 'Stanco' },
     { emoji: '😔', label: 'Solo' },
@@ -273,308 +291,327 @@ export default function HomeScreen() {
     { emoji: '💪', label: 'Ok' },
   ];
 
-  if (!loaded) {
-    return <View style={{ flex: 1, backgroundColor: '#07090f' }} />;
-  }
+  if (!loaded) return <View style={{ flex: 1, backgroundColor: '#080b12' }} />;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <>
+      <StatusBar barStyle="light-content" backgroundColor="#080b12" />
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
 
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.logoSub}>benvenuto</Text>
-          <Text style={styles.logo}>Ancora Qui</Text>
-        </View>
-        <View style={styles.headerRight}>
-          {onlineCount > 0 && (
-            <View style={styles.onlinePill}>
-              <View style={styles.onlineDot} />
-              <Text style={styles.onlineText}>{onlineCount} oggi</Text>
+        {/* HEADER */}
+        <Animated.View style={[styles.header, { opacity: animaHero }]}>
+          <View>
+            <Text style={styles.logoSub}>benvenuto</Text>
+            <Text style={styles.logo}>Ancora Qui</Text>
+          </View>
+          <View style={styles.headerRight}>
+            {onlineCount > 0 && (
+              <View style={styles.onlinePill}>
+                <View style={styles.onlineDot} />
+                <Text style={styles.onlineText}>{onlineCount}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={styles.avatar}
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profilo' as any); }}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '?'}</Text>
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+
+        {/* HERO */}
+        <Animated.View style={[styles.heroSection, { opacity: animaHero }]}>
+
+          {/* RING SVG */}
+          <View style={styles.ringWrapper}>
+            <Svg width={RING_SIZE} height={RING_SIZE} style={StyleSheet.absoluteFill}>
+              <Defs>
+                <LinearGradient id="grad" x1="0" y1="0" x2="1" y2="1">
+                  <Stop offset="0" stopColor="#10b981" stopOpacity="1" />
+                  <Stop offset="1" stopColor="#34d399" stopOpacity="1" />
+                </LinearGradient>
+              </Defs>
+              <Circle
+                cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+                stroke="#1a2030" strokeWidth={RING_STROKE} fill="none"
+              />
+              <AnimatedCircle
+                cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RING_RADIUS}
+                stroke="url(#grad)" strokeWidth={RING_STROKE} fill="none"
+                strokeDasharray={RING_CIRCUMFERENCE}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                rotation="-90"
+                origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+              />
+            </Svg>
+            <View style={styles.ringCenter}>
+              <Text style={styles.ringNum}>{displayGiorni}</Text>
+              <Text style={styles.ringLbl}>giorni</Text>
+            </View>
+          </View>
+
+          {/* FRASE + PERCHÉ inline */}
+          <Text style={styles.fraseMotivazione}>{getFrase(giorni, ultimaRicaduta)}</Text>
+          {perche ? (
+            <Text style={styles.percheInline}>⭐ {perche}</Text>
+          ) : null}
+
+          {/* PROSSIMO BADGE */}
+          {prossimoBadge && (
+            <View style={styles.nextBadge}>
+              <Text style={styles.nextBadgeEmoji}>{prossimoBadge.emoji}</Text>
+              <Text style={styles.nextBadgeText}>
+                {prossimoBadge.giorni - giorni} giorni al prossimo traguardo
+              </Text>
             </View>
           )}
-          <TouchableOpacity style={styles.avatar} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/profilo' as any); }}>
-            <Text style={styles.avatarText}>{nomeUtente ? nomeUtente[0].toUpperCase() : '👤'}</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      <View style={styles.heroSection}>
-        <View style={styles.ringOuter}>
-          <View style={styles.ringInner}>
-            <Text style={styles.ringNum}>{displayGiorni}</Text>
-            <Text style={styles.ringLbl}>giorni</Text>
-          </View>
-          <View style={styles.ringDecorativo}>
-            {Array(12).fill(0).map((_, i) => {
-              const angolo = (i / 12) * 360;
-              const attivo = i < Math.round(progresso * 12);
-              return (
-                <View
-                  key={i}
-                  style={[
-                    styles.ringSegmento,
-                    {
-                      transform: [{ rotate: `${angolo}deg` }, { translateY: -72 }],
-                      backgroundColor: attivo ? '#10b981' : '#1f2937',
-                    }
-                  ]}
-                />
-              );
-            })}
-          </View>
-        </View>
-
-        <Text style={styles.fraseMotivazione}>{getFraseGiorni(giorni, ultimaRicaduta)}</Text>
-
-        {prossimoBadge && (
-          <View style={styles.progressoWrapper}>
-            <View style={styles.progressoBar}>
-              <Animated.View style={[styles.progressoFill, {
-                width: animaProgresso.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] })
-              }]} />
-            </View>
-            <Text style={styles.progressoLabel}>
-              {prossimoBadge.emoji} {prossimoBadge.giorni - giorni} giorni al badge "{prossimoBadge.titolo}"
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.weekRow}>
-          {giorniSettimana.map((g, i) => (
-            <View key={i} style={styles.weekDay}>
-              <View style={[
-                styles.weekDot,
-                settimana[i] && styles.weekDotOn,
-                i === (new Date().getDay() === 0 ? 6 : new Date().getDay() - 1) && !settimana[i] && styles.weekDotOggi,
-              ]} />
-              <Text style={styles.weekLbl}>{g}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        <View style={styles.percheRow}>
-          <Text style={styles.percheIcon}>⭐</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardLbl}>IL TUO PERCHÉ</Text>
-            <Text style={styles.percheVal}>"{perche}"</Text>
-          </View>
-        </View>
-        {giorni >= 2 && (
-          <>
-            <View style={styles.separatore} />
-            <View style={styles.oggiRow}>
-              <View style={[styles.oggiDot, oggiResistito && styles.oggiDotOn]} />
-              <Text style={styles.oggiText}>
-                {oggiResistito ? 'Oggi hai resistito ✓' : 'Oggi non ancora registrato'}
-              </Text>
-            </View>
-          </>
-        )}
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
-        <View style={styles.pills}>
-          {moods.map((mood) => (
-            <TouchableOpacity
-              key={mood.label}
-              style={[styles.pill, moodSelezionato === mood.label && styles.pillOn]}
-              onPress={() => selezionaMood(mood.label)}
-            >
-              <Text style={styles.pillEmoji}>{mood.emoji}</Text>
-              <Text style={[styles.pillText, moodSelezionato === mood.label && styles.pillTextOn]}>
-                {mood.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Notifica di stasera personalizzata</Text> : null}
-      </View>
-
-      <View style={styles.card}>
-        {giorni < 3 ? (
-          <>
-            <Text style={styles.cardLbl}>COSA PUOI RISPARMIARE</Text>
-            <View style={styles.proiezioneRow}>
-              <View style={styles.proiezioneItem}>
-                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 7).toFixed(0)}</Text>
-                <Text style={styles.proiezioneLbl}>7 giorni</Text>
+          {/* SETTIMANA */}
+          <View style={styles.weekRow}>
+            {giorniSettimana.map((g, i) => (
+              <View key={i} style={styles.weekDay}>
+                <View style={[
+                  styles.weekDot,
+                  settimana[i] && styles.weekDotOn,
+                  i === giornoOggi && !settimana[i] && styles.weekDotOggi,
+                ]} />
+                <Text style={styles.weekLbl}>{g}</Text>
               </View>
-              <View style={styles.proiezioneDivider} />
-              <View style={styles.proiezioneItem}>
-                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 30).toFixed(0)}</Text>
-                <Text style={styles.proiezioneLbl}>30 giorni</Text>
-              </View>
-              <View style={styles.proiezioneDivider} />
-              <View style={styles.proiezioneItem}>
-                <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 100).toFixed(0)}</Text>
-                <Text style={styles.proiezioneLbl}>100 giorni</Text>
-              </View>
-            </View>
-            <Text style={styles.proiezioneSub}>Ogni giorno che passa, questi numeri diventano reali. 🌱</Text>
-          </>
-        ) : (
-          <>
-            <View style={styles.moneyRow}>
-              <Text style={styles.cardLbl}>HAI GIÀ RISPARMIATO</Text>
-              <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
-            </View>
-            {risparmi >= 10 && <Text style={styles.moneyItem}>🍕  {Math.floor(risparmi / 10)} pizze</Text>}
-            {risparmi >= 235 && <Text style={styles.moneyItem}>🛒  {Math.floor(risparmi / 235)} mesi di spesa</Text>}
-            {risparmi >= 500 && <Text style={styles.moneyItem}>👶  primo corredino raggiunto ✓</Text>}
-          </>
-        )}
-      </View>
-
-      <View style={styles.linkGrid}>
-        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/diario' as any); }}>
-          <Text style={styles.linkEmoji}>📓</Text>
-          <Text style={styles.linkText}>Diario</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/soldi' as any); }}>
-          <Text style={styles.linkEmoji}>💶</Text>
-          <Text style={styles.linkText}>Soldi</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.linkCard} onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/ricaduta' as any); }}>
-          <Text style={styles.linkEmoji}>🤲</Text>
-          <Text style={styles.linkText}>Ricaduta</Text>
-        </TouchableOpacity>
-      </View>
-
-      <Animated.View style={[{ marginHorizontal: 20, marginBottom: 50 }, { transform: [{ scale: animaSos }] }]}>
-        <Animated.View style={{ transform: [{ scale: animaSosPulse }] }}>
-          <TouchableOpacity style={styles.sos} onPress={premiSos}>
-            <View style={styles.sosDot} />
-            <Text style={styles.sosText}>Ho bisogno di aiuto ora</Text>
-          </TouchableOpacity>
+            ))}
+          </View>
         </Animated.View>
-      </Animated.View>
 
-      <Modal visible={!!badgeModal} transparent animationType="fade">
-        <View style={styles.modalBg}>
-          <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
-            <Text style={styles.modalEmoji}>{badgeModal?.emoji}</Text>
-            <Text style={styles.modalTitolo}>{badgeModal?.titolo}</Text>
-            <Text style={styles.modalDesc}>{badgeModal?.desc}</Text>
-            <TouchableOpacity style={styles.modalBtnCondividi} onPress={condividiMilestone}>
-              <Text style={styles.modalBtnCondividiText}>📤  Condividi questo momento</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalBtn} onPress={() => setBadgeModal(null)}>
-              <Text style={styles.modalBtnText}>Grazie 🙏</Text>
-            </TouchableOpacity>
+        {/* CARDS */}
+        <Animated.View style={{ opacity: animaCards }}>
+
+          {/* OGGI */}
+          {giorni >= 2 && (
+            <View style={styles.card}>
+              <View style={styles.oggiRow}>
+                <View style={[styles.oggiDot, oggiResistito && styles.oggiDotOn]} />
+                <Text style={styles.oggiText}>
+                  {oggiResistito ? 'Oggi hai resistito ✓' : 'Oggi non ancora registrato'}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* MOOD */}
+          <View style={styles.card}>
+            <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
+            <View style={styles.pills}>
+              {moods.map((mood) => (
+                <TouchableOpacity
+                  key={mood.label}
+                  style={[styles.pill, moodSelezionato === mood.label && styles.pillOn]}
+                  onPress={() => selezionaMood(mood.label)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.pillEmoji}>{mood.emoji}</Text>
+                  <Text style={[styles.pillText, moodSelezionato === mood.label && styles.pillTextOn]}>
+                    {mood.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Registrato</Text> : null}
+          </View>
+
+          {/* SOLDI */}
+          <View style={styles.card}>
+            {giorni < 3 ? (
+              <>
+                <Text style={styles.cardLbl}>COSA PUOI RISPARMIARE</Text>
+                <View style={styles.proiezioneRow}>
+                  <View style={styles.proiezioneItem}>
+                    <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 7).toFixed(0)}</Text>
+                    <Text style={styles.proiezioneLbl}>7 giorni</Text>
+                  </View>
+                  <View style={styles.proiezioneDivider} />
+                  <View style={styles.proiezioneItem}>
+                    <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 30).toFixed(0)}</Text>
+                    <Text style={styles.proiezioneLbl}>30 giorni</Text>
+                  </View>
+                  <View style={styles.proiezioneDivider} />
+                  <View style={styles.proiezioneItem}>
+                    <Text style={styles.proiezioneNum}>€{(spesaGiornaliera * 100).toFixed(0)}</Text>
+                    <Text style={styles.proiezioneLbl}>100 giorni</Text>
+                  </View>
+                </View>
+                <Text style={styles.proiezioneSub}>Ogni giorno che passa, questi numeri diventano reali. 🌱</Text>
+              </>
+            ) : (
+              <>
+                <View style={styles.moneyRow}>
+                  <Text style={styles.cardLbl}>HAI GIÀ RISPARMIATO</Text>
+                  <Text style={styles.moneyVal}>€{risparmi.toFixed(0)}</Text>
+                </View>
+                {risparmi >= 10 && <Text style={styles.moneyItem}>🍕  {Math.floor(risparmi / 10)} pizze</Text>}
+                {risparmi >= 235 && <Text style={styles.moneyItem}>🛒  {Math.floor(risparmi / 235)} mesi di spesa</Text>}
+                {risparmi >= 500 && <Text style={styles.moneyItem}>👶  primo corredino raggiunto ✓</Text>}
+              </>
+            )}
+          </View>
+
+          {/* LINK GRID */}
+          <View style={styles.linkGrid}>
+            {[
+              { emoji: '📓', label: 'Diario', route: '/(tabs)/diario' },
+              { emoji: '💶', label: 'Soldi', route: '/(tabs)/soldi' },
+              { emoji: '🤲', label: 'Ricaduta', route: '/(tabs)/ricaduta' },
+            ].map((item) => (
+              <TouchableOpacity
+                key={item.label}
+                style={styles.linkCard}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(item.route as any); }}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.linkEmoji}>{item.emoji}</Text>
+                <Text style={styles.linkText}>{item.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* SOS */}
+          <Animated.View style={{ transform: [{ scale: animaSos }], marginHorizontal: 20, marginBottom: 8 }}>
+            <Animated.View style={{ transform: [{ scale: animaSosPulse }] }}>
+              <TouchableOpacity style={styles.sos} onPress={premiSos} activeOpacity={0.85}>
+                <View style={styles.sosDot} />
+                <Text style={styles.sosText}>Ho bisogno di aiuto ora</Text>
+              </TouchableOpacity>
+            </Animated.View>
           </Animated.View>
-        </View>
-      </Modal>
 
-      <Modal visible={checkinModal} transparent animationType="slide">
-        <View style={styles.modalBg}>
-          <View style={styles.checkinCard}>
-            <Text style={styles.checkinEmoji}>💬</Text>
-            <Text style={styles.checkinDomanda}>{domandaOggi}</Text>
-            <TextInput
-              style={styles.checkinInput}
-              placeholder="Scrivi qualcosa... oppure chiudi"
-              placeholderTextColor="#6b7280"
-              value={checkinRisposta}
-              onChangeText={setCheckinRisposta}
-              multiline
-            />
-            <View style={styles.checkinBtns}>
-              <TouchableOpacity style={styles.checkinSkip} onPress={async () => { await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString()); setCheckinModal(false); }}>
-                <Text style={styles.checkinSkipText}>Non ora</Text>
+        </Animated.View>
+
+        {/* MODAL BADGE */}
+        <Modal visible={!!badgeModal} transparent animationType="fade">
+          <View style={styles.modalBg}>
+            <Animated.View style={[styles.modalCard, { transform: [{ scale: animaBadge }] }]}>
+              <Text style={styles.modalEmoji}>{badgeModal?.emoji}</Text>
+              <Text style={styles.modalTitolo}>{badgeModal?.titolo}</Text>
+              <Text style={styles.modalDesc}>{badgeModal?.desc}</Text>
+              <TouchableOpacity style={styles.modalBtnCondividi} onPress={condividiMilestone} activeOpacity={0.8}>
+                <Text style={styles.modalBtnCondividiText}>📤  Condividi questo momento</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.checkinSave} onPress={salvaCheckin}>
-                <Text style={styles.checkinSaveText}>Salva →</Text>
+              <TouchableOpacity style={styles.modalBtn} onPress={() => setBadgeModal(null)} activeOpacity={0.8}>
+                <Text style={styles.modalBtnText}>Grazie 🙏</Text>
               </TouchableOpacity>
+            </Animated.View>
+          </View>
+        </Modal>
+
+        {/* MODAL CHECK-IN */}
+        <Modal visible={checkinModal} transparent animationType="slide">
+          <View style={styles.modalBg}>
+            <View style={styles.checkinCard}>
+              <Text style={styles.checkinEmoji}>💬</Text>
+              <Text style={styles.checkinDomanda}>{domandaOggi}</Text>
+              <TextInput
+                style={styles.checkinInput}
+                placeholder="Scrivi qualcosa..."
+                placeholderTextColor="#4b5563"
+                value={checkinRisposta}
+                onChangeText={setCheckinRisposta}
+                multiline
+                textAlignVertical="top"
+              />
+              <View style={styles.checkinBtns}>
+                <TouchableOpacity
+                  style={styles.checkinSkip}
+                  onPress={async () => { await AsyncStorageLib.setItem('ultimoCheckin', new Date().toDateString()); setCheckinModal(false); }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.checkinSkipText}>Non ora</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.checkinSave} onPress={salvaCheckin} activeOpacity={0.8}>
+                  <Text style={styles.checkinSaveText}>Salva →</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#07090f' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 60, paddingBottom: 8 },
-  logoSub: { fontSize: 10, color: '#6b7280', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 2 },
-  logo: { fontSize: 26, color: '#d4a853', fontFamily: 'Lora_400Regular_Italic' },
+  container: { flex: 1, backgroundColor: '#080b12' },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingHorizontal: 24, paddingTop: 56, paddingBottom: 12 },
+  logoSub: { fontSize: 10, color: '#4b5563', letterSpacing: 3, textTransform: 'uppercase', marginBottom: 3 },
+  logo: { fontSize: 26, fontWeight: '700', color: '#d4a853', letterSpacing: 1 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(59,130,246,0.1)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.2)', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 },
+  onlinePill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(59,130,246,0.08)', borderWidth: 1, borderColor: 'rgba(59,130,246,0.15)', borderRadius: 100, paddingHorizontal: 10, paddingVertical: 5 },
   onlineDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: '#3b82f6' },
-  onlineText: { fontSize: 10, color: '#3b82f6', fontWeight: '600' },
-  avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#d4a853', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { fontSize: 15, fontWeight: '700', color: '#07090f' },
-  heroSection: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 24 },
-  ringOuter: { width: 160, height: 160, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
-  ringInner: { position: 'absolute', alignItems: 'center', justifyContent: 'center', zIndex: 2 },
-  ringNum: { fontSize: 58, fontWeight: '700', color: '#f9fafb', fontFamily: 'Lora_700Bold', lineHeight: 64 },
-  ringLbl: { fontSize: 12, color: '#6b7280', letterSpacing: 1, textAlign: 'center' },
-  ringDecorativo: { position: 'absolute', width: 160, height: 160, alignItems: 'center', justifyContent: 'center' },
-  ringSegmento: { position: 'absolute', width: 6, height: 16, borderRadius: 3 },
-  fraseMotivazione: { fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 24, fontStyle: 'italic', marginBottom: 20, paddingHorizontal: 8 },
-  progressoWrapper: { width: '100%', marginBottom: 20 },
-  progressoBar: { height: 3, backgroundColor: '#1f2937', borderRadius: 2, overflow: 'hidden', marginBottom: 8 },
-  progressoFill: { height: '100%', backgroundColor: '#10b981', borderRadius: 2 },
-  progressoLabel: { fontSize: 11, color: '#6b7280', textAlign: 'center' },
+  onlineText: { fontSize: 11, color: '#3b82f6', fontWeight: '600' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#d4a853', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 16, fontWeight: '700', color: '#080b12' },
+  heroSection: { alignItems: 'center', paddingTop: 20, paddingBottom: 28, paddingHorizontal: 24 },
+  ringWrapper: { width: RING_SIZE, height: RING_SIZE, alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
+  ringCenter: { alignItems: 'center' },
+  ringNum: { fontSize: 66, fontWeight: '700', color: '#f9fafb', fontFamily: 'Lora_700Bold', lineHeight: 74, textShadowColor: 'rgba(16,185,129,0.25)', textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 24 },
+  ringLbl: { fontSize: 12, color: '#6b7280', letterSpacing: 2.5, textTransform: 'uppercase' },
+  fraseMotivazione: { fontSize: 15, color: '#9ca3af', textAlign: 'center', lineHeight: 25, fontStyle: 'italic', marginBottom: 8, paddingHorizontal: 20 },
+  percheInline: { fontSize: 13, color: '#d4a853', textAlign: 'center', fontFamily: 'Lora_400Regular_Italic', marginBottom: 20, opacity: 0.9 },
+  nextBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(16,185,129,0.05)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.1)', borderRadius: 100, paddingHorizontal: 14, paddingVertical: 7, marginBottom: 24 },
+  nextBadgeEmoji: { fontSize: 13 },
+  nextBadgeText: { fontSize: 11, color: '#10b981', letterSpacing: 0.3 },
   weekRow: { flexDirection: 'row', justifyContent: 'space-between', width: '100%' },
-  weekDay: { alignItems: 'center', gap: 5, flex: 1 },
-  weekDot: { width: 26, height: 26, borderRadius: 13, backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937' },
+  weekDay: { alignItems: 'center', gap: 6, flex: 1 },
+  weekDot: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030' },
   weekDotOn: { backgroundColor: '#10b981', borderColor: '#10b981' },
-  weekDotOggi: { borderColor: '#d4a853', borderWidth: 2 },
-  weekLbl: { fontSize: 9, color: '#6b7280' },
-  card: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 20, padding: 18 },
-  cardLbl: { fontSize: 9, color: '#6b7280', letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase' },
-  percheRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  percheIcon: { fontSize: 16, marginTop: 2 },
-  percheVal: { fontFamily: 'Lora_400Regular_Italic', fontSize: 14, color: '#f9fafb', lineHeight: 22, flex: 1 },
-  separatore: { height: 1, backgroundColor: '#1f2937', marginVertical: 14 },
-  oggiRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  oggiDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#374151' },
+  weekDotOggi: { borderColor: '#d4a853', borderWidth: 1.5 },
+  weekLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 0.5 },
+  card: { marginHorizontal: 20, marginBottom: 12, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 20, padding: 18 },
+  cardLbl: { fontSize: 9, color: '#4b5563', letterSpacing: 2.5, marginBottom: 12, textTransform: 'uppercase' },
+  oggiRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  oggiDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#1f2937' },
   oggiDotOn: { backgroundColor: '#10b981' },
-  oggiText: { fontSize: 13, color: '#9ca3af' },
+  oggiText: { fontSize: 14, color: '#9ca3af' },
   pills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: '#1f2937', backgroundColor: '#111827' },
-  pillOn: { borderColor: 'rgba(212,168,83,0.4)', backgroundColor: 'rgba(212,168,83,0.08)' },
-  pillEmoji: { fontSize: 14 },
+  pill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 100, borderWidth: 1, borderColor: '#1a2030', backgroundColor: '#111827' },
+  pillOn: { borderColor: 'rgba(212,168,83,0.35)', backgroundColor: 'rgba(212,168,83,0.07)' },
+  pillEmoji: { fontSize: 15 },
   pillText: { fontSize: 12, color: '#6b7280' },
   pillTextOn: { color: '#d4a853' },
-  moodConfirm: { fontSize: 10, color: '#10b981', marginTop: 10 },
-  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  moneyVal: { fontSize: 24, color: '#d4a853', fontWeight: '700', fontFamily: 'Lora_700Bold' },
-  moneyItem: { fontSize: 12, color: '#9ca3af', marginBottom: 6 },
+  moodConfirm: { fontSize: 10, color: '#10b981', marginTop: 10, letterSpacing: 0.5 },
+  moneyRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  moneyVal: { fontSize: 26, color: '#d4a853', fontWeight: '700', fontFamily: 'Lora_700Bold' },
+  moneyItem: { fontSize: 13, color: '#9ca3af', marginBottom: 5 },
   proiezioneRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   proiezioneItem: { flex: 1, alignItems: 'center' },
   proiezioneNum: { fontSize: 20, fontWeight: '700', color: '#10b981', fontFamily: 'Lora_700Bold', marginBottom: 4 },
-  proiezioneLbl: { fontSize: 10, color: '#6b7280' },
-  proiezioneDivider: { width: 1, backgroundColor: '#1f2937' },
-  proiezioneSub: { fontSize: 11, color: '#6b7280', textAlign: 'center', fontStyle: 'italic' },
-  linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 16, gap: 10 },
-  linkCard: { flex: 1, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 16, padding: 14, alignItems: 'center', gap: 8 },
+  proiezioneLbl: { fontSize: 10, color: '#4b5563' },
+  proiezioneDivider: { width: 1, backgroundColor: '#1a2030', marginHorizontal: 4 },
+  proiezioneSub: { fontSize: 11, color: '#4b5563', textAlign: 'center', fontStyle: 'italic' },
+  linkGrid: { flexDirection: 'row', marginHorizontal: 20, marginBottom: 14, gap: 10 },
+  linkCard: { flex: 1, backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 18, paddingVertical: 16, alignItems: 'center', gap: 8 },
   linkEmoji: { fontSize: 24 },
-  linkText: { fontSize: 11, color: '#6b7280' },
-  sos: { backgroundColor: '#130808', borderWidth: 1.5, borderColor: 'rgba(239,68,68,0.35)', borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  linkText: { fontSize: 11, color: '#6b7280', letterSpacing: 0.3 },
+  sos: { backgroundColor: '#0f0505', borderWidth: 1.5, borderColor: 'rgba(239,68,68,0.22)', borderRadius: 18, padding: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   sosDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
-  sosText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
-  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  modalCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 28, padding: 32, alignItems: 'center', width: '100%' },
-  modalEmoji: { fontSize: 60, marginBottom: 16 },
+  sosText: { color: '#ef4444', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
+  modalBg: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modalCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 28, padding: 32, alignItems: 'center', width: '100%' },
+  modalEmoji: { fontSize: 64, marginBottom: 16 },
   modalTitolo: { fontSize: 24, fontWeight: '700', color: '#f9fafb', marginBottom: 8, textAlign: 'center', fontFamily: 'Lora_700Bold' },
   modalDesc: { fontSize: 14, color: '#9ca3af', textAlign: 'center', lineHeight: 22, marginBottom: 24 },
-  modalBtnCondividi: { backgroundColor: 'rgba(212,168,83,0.08)', borderWidth: 1, borderColor: 'rgba(212,168,83,0.25)', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
+  modalBtnCondividi: { backgroundColor: 'rgba(212,168,83,0.07)', borderWidth: 1, borderColor: 'rgba(212,168,83,0.2)', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, width: '100%', alignItems: 'center', marginBottom: 10 },
   modalBtnCondividiText: { color: '#d4a853', fontSize: 14, fontWeight: '600' },
-  modalBtn: { backgroundColor: '#d4a853', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 32 },
-  modalBtnText: { color: '#07090f', fontSize: 14, fontWeight: '700' },
-  checkinCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1f2937', borderRadius: 28, padding: 24, width: '100%' },
+  modalBtn: { backgroundColor: '#d4a853', borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40 },
+  modalBtnText: { color: '#080b12', fontSize: 14, fontWeight: '700' },
+  checkinCard: { backgroundColor: '#0d1117', borderWidth: 1, borderColor: '#1a2030', borderRadius: 28, padding: 24, width: '100%' },
   checkinEmoji: { fontSize: 40, textAlign: 'center', marginBottom: 12 },
   checkinDomanda: { fontSize: 18, fontWeight: '700', color: '#f9fafb', textAlign: 'center', lineHeight: 26, marginBottom: 16, fontFamily: 'Lora_700Bold' },
-  checkinInput: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1f2937', borderRadius: 14, padding: 14, color: '#f9fafb', fontSize: 14, minHeight: 80, marginBottom: 16 },
+  checkinInput: { backgroundColor: '#111827', borderWidth: 1, borderColor: '#1a2030', borderRadius: 14, padding: 14, color: '#ffffff', fontSize: 15, minHeight: 80, marginBottom: 16, textAlignVertical: 'top' },
   checkinBtns: { flexDirection: 'row', gap: 10 },
   checkinSkip: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#111827', alignItems: 'center' },
   checkinSkipText: { fontSize: 14, color: '#6b7280' },
   checkinSave: { flex: 1, padding: 14, borderRadius: 14, backgroundColor: '#d4a853', alignItems: 'center' },
-  checkinSaveText: { fontSize: 14, color: '#07090f', fontWeight: '700' },
+  checkinSaveText: { fontSize: 14, color: '#080b12', fontWeight: '700' },
 });
