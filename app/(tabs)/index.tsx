@@ -1,5 +1,6 @@
 import AsyncStorageLib from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
+import * as Notifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -23,6 +24,16 @@ const RING_STROKE = 11;
 const RING_RADIUS = (RING_SIZE - RING_STROKE * 2) / 2;
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
 
 const BADGES = [
   { giorni: 1, emoji: '🌱', titolo: 'Primo giorno', desc: 'Hai iniziato. È tutto.' },
@@ -130,7 +141,10 @@ export default function HomeScreen() {
     caricaMood();
   }, []));
 
-  useEffect(() => { avviaPulseSos(); }, []);
+  useEffect(() => {
+    avviaPulseSos();
+    richiediPermessi();
+  }, []);
 
   useEffect(() => {
     if (!loaded) return;
@@ -160,6 +174,33 @@ export default function HomeScreen() {
         Animated.delay(1800),
       ])
     ).start();
+  };
+
+  const richiediPermessi = async () => {
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status === 'granted') programmaNotifiche();
+    } catch (e) {}
+  };
+
+  const programmaNotifiche = async () => {
+    try {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Ancora Qui 🌅', body: 'Buongiorno. Oggi è un nuovo giorno. Sei ancora qui.' },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 9, minute: 0 },
+      });
+      const moodSalvato = await AsyncStorageLib.getItem('moodOggi');
+      let body = 'Come stai stasera? Sei ancora qui — e questo conta tutto.';
+      if (moodSalvato === 'Stanco') body = 'Sei stanco — lo sappiamo. Non aprire quell\'altra app. Sei ancora qui.';
+      if (moodSalvato === 'Solo') body = 'Stasera ti senti solo. Entra nel Forum — ci sono persone che capiscono.';
+      if (moodSalvato === 'Nervoso') body = 'Giornata pesante? Respira. Apri l\'app prima di fare altro.';
+      if (moodSalvato === 'Ok') body = 'Stai bene stasera. Registra questo momento nel diario. 💪';
+      await Notifications.scheduleNotificationAsync({
+        content: { title: 'Ancora Qui 🌙', body },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.DAILY, hour: 21, minute: 0 },
+      });
+    } catch (e) {}
   };
 
   const caricaDati = async () => {
@@ -247,6 +288,7 @@ export default function HomeScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setMoodSelezionato(mood);
     await AsyncStorageLib.setItem('moodOggi', mood);
+    programmaNotifiche();
   };
 
   const controllaBadge = async (diff: number) => {
@@ -321,10 +363,8 @@ export default function HomeScreen() {
           </View>
         </Animated.View>
 
-        {/* HERO */}
+        {/* HERO — RING SVG */}
         <Animated.View style={[styles.heroSection, { opacity: animaHero }]}>
-
-          {/* RING SVG */}
           <View style={styles.ringWrapper}>
             <Svg width={RING_SIZE} height={RING_SIZE} style={StyleSheet.absoluteFill}>
               <Defs>
@@ -353,13 +393,11 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          {/* FRASE + PERCHÉ inline */}
           <Text style={styles.fraseMotivazione}>{getFrase(giorni, ultimaRicaduta)}</Text>
           {perche ? (
             <Text style={styles.percheInline}>⭐ {perche}</Text>
           ) : null}
 
-          {/* PROSSIMO BADGE */}
           {prossimoBadge && (
             <View style={styles.nextBadge}>
               <Text style={styles.nextBadgeEmoji}>{prossimoBadge.emoji}</Text>
@@ -369,7 +407,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* SETTIMANA */}
           <View style={styles.weekRow}>
             {giorniSettimana.map((g, i) => (
               <View key={i} style={styles.weekDay}>
@@ -387,7 +424,6 @@ export default function HomeScreen() {
         {/* CARDS */}
         <Animated.View style={{ opacity: animaCards }}>
 
-          {/* OGGI */}
           {giorni >= 2 && (
             <View style={styles.card}>
               <View style={styles.oggiRow}>
@@ -399,7 +435,6 @@ export default function HomeScreen() {
             </View>
           )}
 
-          {/* MOOD */}
           <View style={styles.card}>
             <Text style={styles.cardLbl}>COME STAI OGGI?</Text>
             <View style={styles.pills}>
@@ -420,7 +455,6 @@ export default function HomeScreen() {
             {moodSelezionato ? <Text style={styles.moodConfirm}>✓ Registrato</Text> : null}
           </View>
 
-          {/* SOLDI */}
           <View style={styles.card}>
             {giorni < 3 ? (
               <>
@@ -456,7 +490,6 @@ export default function HomeScreen() {
             )}
           </View>
 
-          {/* LINK GRID */}
           <View style={styles.linkGrid}>
             {[
               { emoji: '📓', label: 'Diario', route: '/(tabs)/diario' },
@@ -475,7 +508,6 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* SOS */}
           <Animated.View style={{ transform: [{ scale: animaSos }], marginHorizontal: 20, marginBottom: 8 }}>
             <Animated.View style={{ transform: [{ scale: animaSosPulse }] }}>
               <TouchableOpacity style={styles.sos} onPress={premiSos} activeOpacity={0.85}>
